@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
 
-// In-memory bookings store for mock mode
-export const BOOKINGS: Array<{
+// In-memory bookings store for mock mode (not exported — avoids Next.js route export error)
+const BOOKINGS: Array<{
   id: number
   coach_id: number
-  user_id: number
+  user_id: string
   date: string
   time_slot: string
   message: string
@@ -17,7 +17,7 @@ export const BOOKINGS: Array<{
 let nextId = 1
 
 export async function GET(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   if (useMockData) {
@@ -25,11 +25,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: userBookings })
   }
 
-  return NextResponse.json({ data: [] })
+  // ── Real mode: Prisma ────────────────────────────────────────────────────────
+  const { prisma } = await import('@/lib/prisma')
+  const sessions = await prisma.coachSession.findMany({
+    where: { userId: auth.userId },
+    include: { coach: { include: { profile: true, sport: true } } },
+    orderBy: { scheduledAt: 'desc' },
+  })
+  return NextResponse.json({ data: sessions })
 }
 
 export async function POST(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const body = await req.json()
@@ -54,13 +61,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: booking }, { status: 201 })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-
-  const res = await db.query(
-    `INSERT INTO bookings (coach_id, user_id, date, time_slot, message, status)
-     VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING *`,
-    [coach_id, auth.userId, date, time_slot, message]
-  )
-  return NextResponse.json({ data: res.rows[0] }, { status: 201 })
+  // ── Real mode: Prisma ────────────────────────────────────────────────────────
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const scheduledAt = new Date(`${date}T${time_slot}`)
+    const session = await prisma.coachSession.create({
+      data: {
+        coachId: coach_id,
+        userId: auth.userId,
+        scheduledAt,
+        notes: message,
+        status: 'PENDING',
+      },
+      include: { coach: { include: { profile: true, sport: true } } },
+    })
+    return NextResponse.json({ data: session }, { status: 201 })
+  } catch (err) {
+    console.error('[POST /api/bookings]', err)
+    return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
+  }
 }
