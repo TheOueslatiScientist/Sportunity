@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(cmd.exe /c \"npm install\")",
+      "Bash(cmd.exe /c \"npm install 2>&1\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\Sportunity && npm install\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(cmd.exe /c \"where npm 2>&1\")",
+      "Bash(cmd.exe /c \"where npm\")",
+      "Bash(cmd.exe /c \"where node\")",
+      "Read(//c/Program Files/nodejs//**)",
+      "Read(//c/Users/omsba.DESKTOP-S549PML.000/AppData/Roaming/npm//**)",
+      "Read(//c/Users/omsba.DESKTOP-S549PML.000/AppData/Local/Programs/**)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" install)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" install next@15.3.0)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" audit)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" audit fix)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" list next)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" run build)",
+      "Bash(PATH=\"/c/Program Files/nodejs:$PATH\" \"/c/Program Files/nodejs/npm.cmd\" run build)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :3000\")",
+      "Bash(cmd.exe /c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr LISTENING ^| findstr \"\":300\"\"''\\) do @echo %a\")",
+      "Bash(cmd.exe /c \"netstat -ano 2>&1\")",
+      "Bash(cmd.exe /c \"netstat -ano | findstr LISTENING\")",
+      "Bash(cmd.exe /c \"netstat -ano\")",
+      "Bash(cmd.exe /c \"taskkill /F /IM node.exe 2>&1\")",
+      "Bash(npm run:*)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\Sportunity\\\\app\\\\api\\\\posts\\\\[id]\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\Sportunity\\\\app\\\\api\\\\posts\\\\[id]\\\\comments\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\Sportunity\\\\app\\\\api\\\\posts\\\\[id]\\\\like\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(echo.)"
+    ]
+  }
+}

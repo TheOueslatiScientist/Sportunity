@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sportunity",
+      "runtimeExecutable": "C:\\Users\\omsba.DESKTOP-S549PML.000\\OneDrive\\Bureau\\Sportunity\\node_modules\\.bin\\next.cmd",
+      "runtimeArgs": ["dev", "--port", "3002"],
+      "port": 3002,
+      "autoPort": false,
+      "cwd": "C:\\Users\\omsba.DESKTOP-S549PML.000\\OneDrive\\Bureau\\Sportunity"
+    }
+  ]
+}

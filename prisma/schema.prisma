@@ -1,0 +1,469 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  COACH
+  EXPERT
+}
+
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PRO
+}
+
+enum InfraType {
+  FOOTBALL
+  BASKETBALL
+  TENNIS
+  RUNNING
+  GYM
+  SWIMMING
+  VOLLEYBALL
+  PADEL
+  OTHER
+}
+
+enum InfraStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+}
+
+enum MatchStatus {
+  OPEN
+  FULL
+  CANCELLED
+  COMPLETED
+}
+
+enum TournamentStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CompetitionType {
+  RACE
+  TOURNAMENT
+  CHAMPIONSHIP
+  OTHER
+}
+
+enum CompetitionStatus {
+  OPEN
+  FULL
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ExpertCategory {
+  TRAINING
+  RECOVERY
+  NUTRITION
+  TECHNIQUE
+}
+
+// ─── Core ────────────────────────────────────────────────────────────────────
+
+model Profile {
+  id         Int      @id @default(autoincrement())
+  userId     String   @unique // Supabase Auth UUID
+  name       String
+  avatarUrl  String?
+  bio        String?
+  level      Level?
+  lat        Float?
+  lng        Float?
+  city       String?
+  isCoach    Boolean  @default(false)
+  role       Role     @default(USER)
+  email      String?
+  createdAt  DateTime @default(now())
+
+  sports               ProfileSport[]
+  coach                Coach?
+  matchParticipations  MatchParticipant[]
+  compParticipations   CompetitionParticipant[]
+  clientSessions       CoachSession[]         @relation("ClientSessions")
+  expertPosts          ExpertPost[]
+  expertComments       ExpertComment[]
+  expertPostLikes      ExpertPostLike[]
+  expertPostSaves      ExpertPostSave[]
+  posts                Post[]
+  comments             Comment[]
+  postLikes            PostLike[]
+  sentMessages         Message[]              @relation("SentMessages")
+  receivedMessages     Message[]              @relation("ReceivedMessages")
+  friendsRequested     Friendship[]           @relation("FriendRequester")
+  friendsAddressed     Friendship[]           @relation("FriendAddressee")
+
+  @@map("profiles")
+}
+
+model Sport {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  icon  String
+  color String
+
+  profileSports   ProfileSport[]
+  infrastructures Infrastructure[]
+  events          SportEvent[]
+  matches         Match[]
+  tournaments     Tournament[]
+  competitions    Competition[]
+  coaches         Coach[]
+  expertPosts     ExpertPost[]
+  posts           Post[]
+
+  @@map("sports")
+}
+
+model ProfileSport {
+  profileId Int
+  sportId   Int
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  sport     Sport   @relation(fields: [sportId], references: [id])
+
+  @@id([profileId, sportId])
+  @@map("profile_sports")
+}
+
+// ─── Infrastructure ──────────────────────────────────────────────────────────
+
+model Infrastructure {
+  id       Int         @id @default(autoincrement())
+  name     String
+  type     InfraType
+  address  String
+  lat      Float
+  lng      Float
+  isPublic Boolean     @default(true)
+  status   InfraStatus @default(AVAILABLE)
+  imageUrl String?
+  sportId  Int?
+  sport    Sport?      @relation(fields: [sportId], references: [id])
+  events   SportEvent[]
+
+  @@map("infrastructures")
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+model SportEvent {
+  id               Int             @id @default(autoincrement())
+  title            String
+  sportId          Int
+  sport            Sport           @relation(fields: [sportId], references: [id])
+  infrastructureId Int?
+  infrastructure   Infrastructure? @relation(fields: [infrastructureId], references: [id])
+  creatorId        Int
+  date             DateTime
+  maxParticipants  Int
+  description      String?
+  level            String?
+  createdAt        DateTime        @default(now())
+
+  @@map("sport_events")
+}
+
+// ─── Matches ─────────────────────────────────────────────────────────────────
+
+model Match {
+  id          Int         @id @default(autoincrement())
+  title       String
+  sportId     Int
+  sport       Sport       @relation(fields: [sportId], references: [id])
+  creatorId   Int
+  date        DateTime
+  location    String
+  address     String?
+  city        String
+  lat         Float?
+  lng         Float?
+  maxPlayers  Int
+  status      MatchStatus @default(OPEN)
+  level       String?
+  description String?
+  hasTeams    Boolean     @default(false)
+  teamAName   String?
+  teamBName   String?
+  createdAt   DateTime    @default(now())
+
+  participants MatchParticipant[]
+
+  @@map("matches")
+}
+
+model MatchParticipant {
+  matchId   Int
+  profileId Int
+  team      String?
+  joinedAt  DateTime @default(now())
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  profile   Profile  @relation(fields: [profileId], references: [id])
+
+  @@id([matchId, profileId])
+  @@map("match_participants")
+}
+
+// ─── Tournaments ─────────────────────────────────────────────────────────────
+
+model Tournament {
+  id          Int              @id @default(autoincrement())
+  title       String
+  sportId     Int
+  sport       Sport            @relation(fields: [sportId], references: [id])
+  creatorId   Int
+  startDate   DateTime
+  endDate     DateTime?
+  location    String
+  address     String?
+  city        String
+  lat         Float?
+  lng         Float?
+  maxTeams    Int
+  teamsCount  Int              @default(0)
+  description String?
+  prize       String?
+  status      TournamentStatus @default(OPEN)
+  createdAt   DateTime         @default(now())
+
+  @@map("tournaments")
+}
+
+// ─── Competitions ─────────────────────────────────────────────────────────────
+
+model Competition {
+  id              Int               @id @default(autoincrement())
+  title           String
+  sportId         Int
+  sport           Sport             @relation(fields: [sportId], references: [id])
+  creatorId       Int
+  date            DateTime
+  location        String
+  address         String?
+  city            String
+  lat             Float?
+  lng             Float?
+  maxParticipants Int
+  description     String?
+  type            CompetitionType
+  status          CompetitionStatus @default(OPEN)
+  distanceKm      Float?
+  priceEntry      Float?
+  createdAt       DateTime          @default(now())
+
+  participants CompetitionParticipant[]
+
+  @@map("competitions")
+}
+
+model CompetitionParticipant {
+  competitionId Int
+  profileId     Int
+  joinedAt      DateTime    @default(now())
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  profile       Profile     @relation(fields: [profileId], references: [id])
+
+  @@id([competitionId, profileId])
+  @@map("competition_participants")
+}
+
+// ─── Coaches ─────────────────────────────────────────────────────────────────
+
+model Coach {
+  id               Int      @id @default(autoincrement())
+  profileId        Int      @unique
+  profile          Profile  @relation(fields: [profileId], references: [id])
+  sportId          Int
+  sport            Sport    @relation(fields: [sportId], references: [id])
+  hourlyRate       Float
+  description      String?
+  experienceYears  Int      @default(0)
+  rating           Float    @default(0)
+  reviewsCount     Int      @default(0)
+  certifications   String[]
+  specialties      String[]
+  city             String?
+  lat              Float?
+  lng              Float?
+  languages        String[]
+  availabilityText String?
+  isAvailableNow   Boolean  @default(false)
+  isCertified      Boolean  @default(false)
+  isPopular        Boolean  @default(false)
+  clientsCount     Int      @default(0)
+  sessionsCount    Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  sessions CoachSession[]
+
+  @@map("coaches")
+}
+
+model CoachSession {
+  id              Int           @id @default(autoincrement())
+  coachId         Int
+  coach           Coach         @relation(fields: [coachId], references: [id])
+  clientId        Int
+  client          Profile       @relation("ClientSessions", fields: [clientId], references: [id])
+  date            DateTime
+  durationMinutes Int           @default(60)
+  location        String
+  city            String?
+  status          SessionStatus @default(SCHEDULED)
+  notes           String?
+  price           Float?
+  createdAt       DateTime      @default(now())
+
+  @@map("coach_sessions")
+}
+
+// ─── Expert Posts ─────────────────────────────────────────────────────────────
+
+model ExpertPost {
+  id        Int            @id @default(autoincrement())
+  authorId  Int
+  author    Profile        @relation(fields: [authorId], references: [id])
+  title     String
+  content   String
+  excerpt   String?
+  category  ExpertCategory
+  sportId   Int?
+  sport     Sport?         @relation(fields: [sportId], references: [id])
+  likes     Int            @default(0)
+  readTime  Int?
+  createdAt DateTime       @default(now())
+
+  comments ExpertComment[]
+  likedBy  ExpertPostLike[]
+  savedBy  ExpertPostSave[]
+
+  @@map("expert_posts")
+}
+
+model ExpertComment {
+  id           Int        @id @default(autoincrement())
+  expertPostId Int
+  expertPost   ExpertPost @relation(fields: [expertPostId], references: [id], onDelete: Cascade)
+  authorId     Int
+  author       Profile    @relation(fields: [authorId], references: [id])
+  content      String
+  createdAt    DateTime   @default(now())
+
+  @@map("expert_comments")
+}
+
+model ExpertPostLike {
+  postId    Int
+  profileId Int
+  createdAt DateTime   @default(now())
+  post      ExpertPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile   Profile    @relation(fields: [profileId], references: [id])
+
+  @@id([postId, profileId])
+  @@map("expert_post_likes")
+}
+
+model ExpertPostSave {
+  postId    Int
+  profileId Int
+  createdAt DateTime   @default(now())
+  post      ExpertPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile   Profile    @relation(fields: [profileId], references: [id])
+
+  @@id([postId, profileId])
+  @@map("expert_post_saves")
+}
+
+// ─── Social ──────────────────────────────────────────────────────────────────
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  authorId  Int
+  author    Profile  @relation(fields: [authorId], references: [id])
+  content   String
+  imageUrl  String?
+  sportId   Int?
+  sport     Sport?   @relation(fields: [sportId], references: [id])
+  type      String   @default("post")
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  comments Comment[]
+  likedBy  PostLike[]
+
+  @@map("posts")
+}
+
+model PostLike {
+  postId    Int
+  profileId Int
+  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile   Profile @relation(fields: [profileId], references: [id])
+
+  @@id([postId, profileId])
+  @@map("post_likes")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    Profile  @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@map("comments")
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  content    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  sender     Profile  @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   Profile  @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@map("messages")
+}
+
+model Friendship {
+  id          Int              @id @default(autoincrement())
+  requesterId Int
+  addresseeId Int
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  requester   Profile          @relation("FriendRequester", fields: [requesterId], references: [id])
+  addressee   Profile          @relation("FriendAddressee", fields: [addresseeId], references: [id])
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
+}
