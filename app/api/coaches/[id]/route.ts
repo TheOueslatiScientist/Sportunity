@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
-import { COACHES, PROFILES } from '@/lib/mock-data'
+import { COACHES } from '@/lib/mock-data'
 
-// ── GET /api/coaches/:id ──────────────────────────────────────────────────────
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,23 +16,28 @@ export async function GET(
     return NextResponse.json({ data: coach })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query(
-    `SELECT c.*,
-     json_build_object('id', p.id, 'name', p.name, 'avatar_url', p.avatar_url, 'city', p.city, 'bio', p.bio) as profile,
-     json_build_object('id', s.id, 'name', s.name, 'icon', s.icon, 'color', s.color) as sport
-     FROM coaches c
-     JOIN profiles p ON p.user_id = c.user_id
-     JOIN sports s ON s.id = c.sport_id
-     WHERE c.id = $1`,
-    [coachId]
-  )
-  if (res.rows.length === 0) return NextResponse.json({ error: 'Coach introuvable.' }, { status: 404 })
-  return NextResponse.json({ data: res.rows[0] })
+  const { prisma } = await import('@/lib/prisma')
+  const coach = await prisma.coach.findUnique({
+    where: { id: coachId },
+    include: { profile: true, sport: true },
+  })
+  if (!coach) return NextResponse.json({ error: 'Coach introuvable.' }, { status: 404 })
+
+  return NextResponse.json({
+    data: {
+      id: coach.id, user_id: coach.profileId, profile: serializeProfile(coach.profile),
+      sport_id: coach.sportId, sport: coach.sport, hourly_rate: coach.hourlyRate,
+      description: coach.description, experience_years: coach.experienceYears,
+      rating: coach.rating, reviews_count: coach.reviewsCount,
+      certifications: coach.certifications, specialties: coach.specialties,
+      city: coach.city, lat: coach.lat, lng: coach.lng, languages: coach.languages,
+      availability_text: coach.availabilityText, is_available_now: coach.isAvailableNow,
+      is_certified: coach.isCertified, is_popular: coach.isPopular,
+      clients_count: coach.clientsCount, sessions_count: coach.sessionsCount,
+    },
+  })
 }
 
-// ── PUT /api/coaches/:id ──────────────────────────────────────────────────────
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,24 +58,31 @@ export async function PUT(
     return NextResponse.json({ data: COACHES[idx] })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const fields = ['sport_id','hourly_rate','description','experience_years','certifications','specialties','city','availability_text','is_available_now']
-  const updates: string[] = []
-  const values: unknown[] = []
-  let i = 1
-  for (const f of fields) {
-    if (body[f] !== undefined) {
-      updates.push(`${f} = $${i++}`)
-      values.push(body[f])
-    }
-  }
-  if (!updates.length) return NextResponse.json({ error: 'Rien à modifier.' }, { status: 400 })
-  values.push(coachId, auth.userId)
-  const res = await db.query(
-    `UPDATE coaches SET ${updates.join(', ')} WHERE id = $${i} AND user_id = $${i + 1} RETURNING *`,
-    values
-  )
-  if (!res.rows.length) return NextResponse.json({ error: 'Interdit ou introuvable.' }, { status: 403 })
-  return NextResponse.json({ data: res.rows[0] })
+  const { prisma } = await import('@/lib/prisma')
+  const existing = await prisma.coach.findUnique({ where: { id: coachId } })
+  if (!existing) return NextResponse.json({ error: 'Coach introuvable.' }, { status: 404 })
+  if (existing.profileId !== (auth.userId as number))
+    return NextResponse.json({ error: 'Interdit.' }, { status: 403 })
+
+  const data: Record<string, unknown> = {}
+  if (body.sport_id !== undefined) data.sportId = body.sport_id
+  if (body.hourly_rate !== undefined) data.hourlyRate = parseFloat(body.hourly_rate)
+  if (body.description !== undefined) data.description = body.description
+  if (body.experience_years !== undefined) data.experienceYears = parseInt(body.experience_years)
+  if (body.certifications !== undefined) data.certifications = body.certifications
+  if (body.specialties !== undefined) data.specialties = body.specialties
+  if (body.city !== undefined) data.city = body.city
+  if (body.availability_text !== undefined) data.availabilityText = body.availability_text
+  if (body.is_available_now !== undefined) data.isAvailableNow = body.is_available_now
+
+  const updated = await prisma.coach.update({
+    where: { id: coachId },
+    data,
+    include: { profile: true, sport: true },
+  })
+  return NextResponse.json({ data: updated })
+}
+
+function serializeProfile(p: any) {
+  return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city, bio: p.bio }
 }

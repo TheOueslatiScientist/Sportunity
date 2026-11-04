@@ -16,23 +16,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ data: profile })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query(
-    `SELECT p.*, u.email,
-     array_agg(json_build_object('id', s.id, 'name', s.name, 'icon', s.icon, 'color', s.color)) as sports
-     FROM profiles p
-     JOIN users u ON u.id = p.user_id
-     LEFT JOIN user_sports us ON us.user_id = p.user_id
-     LEFT JOIN sports s ON s.id = us.sport_id
-     WHERE p.user_id = $1
-     GROUP BY p.id, u.email`,
-    [id]
-  )
-  if (res.rows.length === 0) {
-    return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 })
-  }
-  return NextResponse.json({ data: res.rows[0] })
+  const { prisma } = await import('@/lib/prisma')
+  const profile = await prisma.profile.findUnique({
+    where: { id },
+    include: { sports: { include: { sport: true } } },
+  })
+  if (!profile) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 })
+
+  return NextResponse.json({
+    data: {
+      id: profile.id, user_id: profile.id, name: profile.name, avatar_url: profile.avatarUrl,
+      bio: profile.bio, city: profile.city, level: profile.level?.toLowerCase(),
+      is_coach: profile.isCoach, email: profile.email,
+      sports: profile.sports.map((ps) => ps.sport),
+    },
+  })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id: idStr } = await params
   const id = parseInt(idStr)
-  if (auth.userId !== id) return NextResponse.json({ error: 'Interdit.' }, { status: 403 })
+  if ((auth.userId as number) !== id) return NextResponse.json({ error: 'Interdit.' }, { status: 403 })
 
   const body = await req.json()
 
@@ -52,23 +50,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ data: PROFILES[idx] })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const fields = ['name', 'bio', 'level', 'city', 'avatar_url', 'is_coach']
-  const updates: string[] = []
-  const values: unknown[] = []
-  let i = 1
-  for (const f of fields) {
-    if (body[f] !== undefined) {
-      updates.push(`${f} = $${i++}`)
-      values.push(body[f])
-    }
-  }
-  if (updates.length === 0) return NextResponse.json({ error: 'Aucun champ à mettre à jour.' }, { status: 400 })
-  values.push(id)
-  const res = await db.query(
-    `UPDATE profiles SET ${updates.join(', ')}, updated_at = NOW() WHERE user_id = $${i} RETURNING *`,
-    values
-  )
-  return NextResponse.json({ data: res.rows[0] })
+  const { prisma } = await import('@/lib/prisma')
+  const data: Record<string, unknown> = {}
+  if (body.name !== undefined) data.name = body.name
+  if (body.bio !== undefined) data.bio = body.bio
+  if (body.city !== undefined) data.city = body.city
+  if (body.avatar_url !== undefined) data.avatarUrl = body.avatar_url
+  if (body.level !== undefined) data.level = body.level?.toUpperCase()
+  if (body.is_coach !== undefined) data.isCoach = body.is_coach
+
+  if (Object.keys(data).length === 0)
+    return NextResponse.json({ error: 'Aucun champ à mettre à jour.' }, { status: 400 })
+
+  const updated = await prisma.profile.update({ where: { id }, data })
+  return NextResponse.json({ data: updated })
 }

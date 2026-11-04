@@ -13,25 +13,24 @@ export async function GET(req: NextRequest) {
 
   if (useMockData) {
     let users = PROFILES.filter((p) => p.user_id !== auth.userId)
-    if (sport) {
-      users = users.filter((p) => p.sports?.some((s) => s.name.toLowerCase() === sport.toLowerCase()))
-    }
-    if (city) {
-      users = users.filter((p) => p.city?.toLowerCase().includes(city.toLowerCase()))
-    }
+    if (sport) users = users.filter((p) => p.sports?.some((s: any) => s.name.toLowerCase() === sport.toLowerCase()))
+    if (city) users = users.filter((p) => p.city?.toLowerCase().includes(city.toLowerCase()))
     return NextResponse.json({ data: users })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query(
-    `SELECT p.*, array_agg(json_build_object('id', s.id, 'name', s.name, 'icon', s.icon, 'color', s.color)) as sports
-     FROM profiles p
-     LEFT JOIN user_sports us ON us.user_id = p.user_id
-     LEFT JOIN sports s ON s.id = us.sport_id
-     WHERE p.user_id != $1
-     GROUP BY p.id`,
-    [auth.userId]
-  )
-  return NextResponse.json({ data: res.rows })
+  const { prisma } = await import('@/lib/prisma')
+  const where: any = { NOT: { id: auth.userId as number } }
+  if (city) where.city = { contains: city, mode: 'insensitive' }
+
+  const profiles = await prisma.profile.findMany({
+    where,
+    include: { sports: { include: { sport: true } } },
+  })
+
+  const data = profiles.map((p) => ({
+    id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl,
+    bio: p.bio, city: p.city, level: p.level?.toLowerCase(), is_coach: p.isCoach,
+    sports: p.sports.map((ps) => ps.sport),
+  }))
+  return NextResponse.json({ data })
 }

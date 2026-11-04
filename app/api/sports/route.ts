@@ -6,8 +6,7 @@ export async function GET() {
   if (useMockData) {
     return NextResponse.json({ data: SPORTS })
   }
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query('SELECT * FROM sports ORDER BY name')
-  return NextResponse.json({ data: res.rows })
+  const { prisma } = await import('@/lib/prisma')
+  const sports = await prisma.sport.findMany({ orderBy: { name: 'asc' } })
+  return NextResponse.json({ data: sports })
 }

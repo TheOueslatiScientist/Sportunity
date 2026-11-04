@@ -14,18 +14,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ data })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query(
-    `SELECT c.*,
-     json_build_object('id', p.id, 'name', p.name, 'avatar_url', p.avatar_url, 'is_coach', p.is_coach) as author
-     FROM comments c
-     JOIN profiles p ON p.user_id = c.author_id
-     WHERE c.post_id = $1
-     ORDER BY c.created_at ASC`,
-    [postId]
-  )
-  return NextResponse.json({ data: res.rows })
+  const { prisma } = await import('@/lib/prisma')
+  const comments = await prisma.comment.findMany({
+    where: { postId },
+    include: { author: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  const data = comments.map((c) => ({
+    id: c.id, post_id: c.postId, content: c.content, created_at: c.createdAt,
+    author: { id: c.author.id, name: c.author.name, avatar_url: c.author.avatarUrl, is_coach: c.author.isCoach },
+  }))
+  return NextResponse.json({ data })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,32 +33,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const postId = parseInt(id)
-
-  const body = await req.json()
-  const { content } = body
-  if (!content?.trim()) {
-    return NextResponse.json({ error: 'Le commentaire ne peut pas être vide.' }, { status: 400 })
-  }
+  const { content } = await req.json()
+  if (!content?.trim()) return NextResponse.json({ error: 'Le commentaire ne peut pas être vide.' }, { status: 400 })
 
   if (useMockData) {
     const author = PROFILES.find((p) => p.user_id === auth.userId)
     const comment = {
-      id: getNextId(COMMENTS),
-      post_id: postId,
-      author_id: auth.userId,
-      author,
-      content: content.trim(),
-      created_at: new Date().toISOString(),
+      id: getNextId(COMMENTS), post_id: postId, author_id: auth.userId,
+      author, content: content.trim(), created_at: new Date().toISOString(),
     }
     COMMENTS.push(comment)
     return NextResponse.json({ data: comment }, { status: 201 })
   }
 
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const res = await db.query(
-    'INSERT INTO comments (post_id, author_id, content) VALUES ($1, $2, $3) RETURNING *',
-    [postId, auth.userId, content.trim()]
-  )
-  return NextResponse.json({ data: res.rows[0] }, { status: 201 })
+  const { prisma } = await import('@/lib/prisma')
+  const comment = await prisma.comment.create({
+    data: { postId, authorId: auth.userId as number, content: content.trim() },
+    include: { author: true },
+  })
+  return NextResponse.json({ data: comment }, { status: 201 })
 }

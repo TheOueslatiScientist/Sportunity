@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const lat = parseFloat(searchParams.get('lat') ?? '48.8566')
   const lng = parseFloat(searchParams.get('lng') ?? '2.3522')
-  const radius = parseFloat(searchParams.get('radius') ?? '5') // km
+  const radius = parseFloat(searchParams.get('radius') ?? '5')
   const type = searchParams.get('type')
 
   if (isNaN(lat) || isNaN(lng)) {
@@ -19,27 +19,32 @@ export async function GET(req: NextRequest) {
       ...infra,
       distance: haversineDistance(lat, lng, infra.lat, infra.lng),
     })).filter((infra) => infra.distance <= radius)
-
     if (type && type !== 'all') data = data.filter((i) => i.type === type)
     data.sort((a, b) => a.distance - b.distance)
     return NextResponse.json({ data })
   }
 
-  // Real DB: uses bounding box approximation for performance, then haversine filter
-  const { getDb } = await import('@/lib/db')
-  const db = getDb()
-  const delta = radius / 111 // 1 degree ≈ 111 km
-  const conditions: string[] = [`lat BETWEEN $1 AND $2`, `lng BETWEEN $3 AND $4`]
-  const values: unknown[] = [lat - delta, lat + delta, lng - delta, lng + delta]
-  let i = 5
-  if (type && type !== 'all') { conditions.push(`type = $${i++}`); values.push(type) }
-  const res = await db.query(
-    `SELECT *, (6371 * acos(cos(radians($${i})) * cos(radians(lat)) * cos(radians(lng) - radians($${i + 1})) + sin(radians($${i})) * sin(radians(lat)))) AS distance
-     FROM infrastructures
-     WHERE ${conditions.join(' AND ')}
-     HAVING distance <= $${i + 2}
-     ORDER BY distance`,
-    [...values, lat, lng, radius]
-  )
-  return NextResponse.json({ data: res.rows })
+  const { prisma } = await import('@/lib/prisma')
+  const delta = radius / 111
+  const infras = await prisma.infrastructure.findMany({
+    where: {
+      lat: { gte: lat - delta, lte: lat + delta },
+      lng: { gte: lng - delta, lte: lng + delta },
+      ...(type && type !== 'all' ? { type: type.toUpperCase() as any } : {}),
+    },
+    include: { sport: true },
+  })
+
+  const data = infras
+    .map((i) => ({
+      id: i.id, name: i.name, type: i.type.toLowerCase(),
+      address: i.address, lat: i.lat, lng: i.lng,
+      is_public: i.isPublic, status: i.status.toLowerCase(),
+      image_url: i.imageUrl, sport: i.sport,
+      distance: haversineDistance(lat, lng, i.lat, i.lng),
+    }))
+    .filter((i) => i.distance <= radius)
+    .sort((a, b) => a.distance - b.distance)
+
+  return NextResponse.json({ data })
 }
