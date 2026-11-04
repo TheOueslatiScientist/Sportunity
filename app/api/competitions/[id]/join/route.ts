@@ -5,7 +5,7 @@ import { COMPETITIONS, COMPETITION_PARTICIPANTS } from '@/lib/mock-data'
 
 // POST /api/competitions/[id]/join
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { id } = await params
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 // DELETE /api/competitions/[id]/join — withdraw
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { id } = await params

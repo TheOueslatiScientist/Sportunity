@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
 import { MESSAGES, PROFILES, getNextId } from '@/lib/mock-data'
 
 export async function POST(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   try {

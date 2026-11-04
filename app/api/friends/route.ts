@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
 import { FRIENDSHIPS, PROFILES, getNextId } from '@/lib/mock-data'
 
 // GET /api/friends — list accepted friends + pending requests for current user
 export async function GET(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   if (useMockData) {
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/friends — send a friend request { addressee_id }
 export async function POST(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { addressee_id } = await req.json()

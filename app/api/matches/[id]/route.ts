@@ -7,7 +7,7 @@ import { MATCHES, PROFILES, MATCH_PARTICIPANTS } from '@/lib/mock-data'
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const matchId = parseInt(id)
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
 
   if (useMockData) {
     const match = MATCHES.find((m) => m.id === matchId)

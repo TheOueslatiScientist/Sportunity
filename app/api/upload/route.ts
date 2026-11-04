@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join, extname } from 'path'
 import { getUserFromRequest } from '@/lib/auth'
@@ -8,7 +8,7 @@ const ALLOWED_VIDEO = ['.mp4', '.mov', '.webm']
 const MAX_SIZE_MB = 50
 
 export async function POST(req: NextRequest) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   try {

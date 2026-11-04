@@ -4,7 +4,7 @@ import { useMockData } from '@/lib/db'
 import { MESSAGES } from '@/lib/mock-data'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { userId } = await params

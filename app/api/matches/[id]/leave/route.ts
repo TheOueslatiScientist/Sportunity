@@ -5,7 +5,7 @@ import { MATCHES, MATCH_PARTICIPANTS } from '@/lib/mock-data'
 
 // DELETE /api/matches/[id]/leave
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { id } = await params

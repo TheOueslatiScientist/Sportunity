@@ -5,7 +5,7 @@ import { COACH_SESSIONS, COACHES } from '@/lib/mock-data'
 
 // PATCH /api/coach/sessions/[id] — update status
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = getUserFromRequest(req)
+  const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   const { id } = await params

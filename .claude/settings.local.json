@@ -33,7 +33,30 @@
       "Bash(npx tsc:*)",
       "Bash(npm install *)",
       "Bash(npx prisma *)",
-      "Bash(echo.)"
+      "Bash(echo.)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\services\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\realisations\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\a-propos\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\contact\")",
+      "PowerShell(Start-Process -FilePath \"npm\" -ArgumentList \"run\",\"dev\",\"--\",\"--port\",\"3001\" -WorkingDirectory \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\" -WindowStyle Hidden)",
+      "PowerShell($null)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3001\" -TimeoutSec 5 -UseBasicParsing; \"OK: $\\($r.StatusCode\\)\" } catch { \"Erreur: $_\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3001\" -TimeoutSec 10 -UseBasicParsing; $found = @\\(\\); if \\($r.Content -match \"OMS\"\\) { $found += \"Header/Logo OMS\" }; if \\($r.Content -match \"Construisons\"\\) { $found += \"Section Hero\" }; if \\($r.Content -match \"Gros\"\\) { $found += \"Section Services\" }; if \\($r.Content -match \"Devis\"\\) { $found += \"CTA Devis\" }; if \\($r.Content -match \"2026|2025\"\\) { $found += \"Footer annee\" }; $found -join \"`n\" } catch { $_ })",
+      "PowerShell($pages = @\\(\"/services\", \"/realisations\", \"/a-propos\", \"/contact\"\\); foreach \\($p in $pages\\) { try { $r = Invoke-WebRequest -Uri \"http://localhost:3001$p\" -TimeoutSec 10 -UseBasicParsing; \"✅ $p — $\\($r.StatusCode\\)\" } catch { \"❌ $p — $_\" } })",
+      "PowerShell(Start-Sleep -Seconds 5; $pages = @\\(\"/\", \"/services\", \"/realisations\", \"/a-propos\", \"/contact\"\\); foreach \\($p in $pages\\) { try { $r = Invoke-WebRequest -Uri \"http://localhost:3001$p\" -TimeoutSec 8 -UseBasicParsing; \"✅ $p — OK\" } catch { \"❌ $p — $_\" } })",
+      "PowerShell($r = Invoke-WebRequest -Uri \"http://localhost:3001\" -TimeoutSec 8 -UseBasicParsing; $checks = @\\(\"OMS\",\"Métropole\",\"06 15 75 23 07\"\\); foreach \\($c in $checks\\) { if \\($r.Content -match [regex]::Escape\\($c\\)\\) { \"✅ '$c' présent\" } else { \"❌ '$c' absent\" } })",
+      "PowerShell(Start-Sleep -Seconds 5; try { $r = Invoke-WebRequest -Uri \"http://localhost:3001/contact\" -TimeoutSec 10 -UseBasicParsing; if \\($r.Content -match \"Estimation automatique\"\\) { \"✅ Estimateur présent\" } else { \"❌ Estimateur absent\" }; if \\($r.Content -match \"06 15 75 23 07\"\\) { \"✅ Téléphone correct\" } else { \"❌ Téléphone absent\" } } catch { \"❌ Erreur: $_\" })",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\mentions-legales\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\oms-batiment\\\\app\\\\confidentialite\")",
+      "Bash(git commit -m 'fix: user_id type string|number in bookings mock store *)",
+      "Bash(git remote *)",
+      "Bash(git commit -m 'fix: use clientId/date/SCHEDULED in bookings Prisma query *)",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
