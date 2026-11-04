@@ -6,7 +6,7 @@ import { useMockData } from '@/lib/db'
 const BOOKINGS: Array<{
   id: number
   coach_id: number
-  user_id: string
+  user_id: number | string
   date: string
   time_slot: string
   message: string
