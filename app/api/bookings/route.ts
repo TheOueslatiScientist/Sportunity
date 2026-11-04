@@ -28,9 +28,9 @@ export async function GET(req: NextRequest) {
   // ── Real mode: Prisma ────────────────────────────────────────────────────────
   const { prisma } = await import('@/lib/prisma')
   const sessions = await prisma.coachSession.findMany({
-    where: { userId: auth.userId },
+    where: { clientId: auth.userId as number },
     include: { coach: { include: { profile: true, sport: true } } },
-    orderBy: { scheduledAt: 'desc' },
+    orderBy: { date: 'desc' },
   })
   return NextResponse.json({ data: sessions })
 }
@@ -64,14 +64,14 @@ export async function POST(req: NextRequest) {
   // ── Real mode: Prisma ────────────────────────────────────────────────────────
   try {
     const { prisma } = await import('@/lib/prisma')
-    const scheduledAt = new Date(`${date}T${time_slot}`)
     const session = await prisma.coachSession.create({
       data: {
         coachId: coach_id,
-        userId: auth.userId,
-        scheduledAt,
+        clientId: auth.userId as number,
+        date: new Date(`${date}T${time_slot}`),
+        location: '',
         notes: message,
-        status: 'PENDING',
+        status: 'SCHEDULED',
       },
       include: { coach: { include: { profile: true, sport: true } } },
     })
