@@ -35,7 +35,7 @@ function CoachSheet({ coach, onClose }: { coach: Coach; onClose: () => void }) {
             {coach.profile?.avatar_url ? (
               <img src={coach.profile.avatar_url} alt={coach.profile.name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">{coach.sport?.icon}</div>
+              <div className="w-full h-full flex items-center justify-center bg-primary-50 text-primary-700 font-bold text-sm">{coach.profile?.name?.[0] ?? 'C'}</div>
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -48,7 +48,7 @@ function CoachSheet({ coach, onClose }: { coach: Coach; onClose: () => void }) {
                 <span className="text-[10px] font-semibold bg-green-50 text-green-600 px-2 py-0.5 rounded-full">Dispo</span>
               )}
               {coach.distance != null && (
-                <span className="text-[10px] font-medium text-gray-400">📍 {coach.distance < 1 ? `${Math.round(coach.distance * 1000)}m` : `${coach.distance.toFixed(1)}km`}</span>
+                <span className="text-[10px] font-medium text-gray-400">{coach.distance < 1 ? `${Math.round(coach.distance * 1000)}m` : `${coach.distance.toFixed(1)}km`}</span>
               )}
             </div>
           </div>
@@ -65,7 +65,7 @@ function CoachSheet({ coach, onClose }: { coach: Coach; onClose: () => void }) {
             Voir le profil
           </Link>
           <Link href={`/chat?userId=${coach.user_id}`} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 text-sm font-bold text-center">
-            💬 Contacter
+            Contacter
           </Link>
         </div>
       </div>
@@ -89,27 +89,27 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 const SPORT_FILTERS = [
-  { value: 'all',        label: '🏅 Tous' },
-  { value: 'football',   label: '⚽ Foot' },
-  { value: 'basketball', label: '🏀 Basket' },
-  { value: 'tennis',     label: '🎾 Tennis' },
-  { value: 'running',    label: '🏃 Running' },
-  { value: 'swimming',   label: '🏊 Natation' },
-  { value: 'gym',        label: '💪 Gym' },
-  { value: 'padel',      label: '🏓 Padel' },
-  { value: 'volleyball', label: '🏐 Volley' },
+  { value: 'all',        label: 'Tous' },
+  { value: 'football',   label: 'Foot' },
+  { value: 'basketball', label: 'Basket' },
+  { value: 'tennis',     label: 'Tennis' },
+  { value: 'running',    label: 'Running' },
+  { value: 'swimming',   label: 'Natation' },
+  { value: 'gym',        label: 'Gym' },
+  { value: 'padel',      label: 'Padel' },
+  { value: 'volleyball', label: 'Volley' },
 ]
 
 const STATUS_FILTERS = [
   { value: 'all',       label: 'Tous' },
-  { value: 'available', label: '🟢 Dispo' },
-  { value: 'occupied',  label: '🔴 Occupé' },
+  { value: 'available', label: 'Disponible' },
+  { value: 'occupied',  label: 'Occupé' },
 ]
 
 const ACCESS_FILTERS = [
   { value: 'all',     label: 'Tous' },
-  { value: 'public',  label: '🔓 Public' },
-  { value: 'private', label: '🔒 Privé' },
+  { value: 'public',  label: 'Public' },
+  { value: 'private', label: 'Privé' },
 ]
 
 const DISTANCE_FILTERS = [
@@ -121,9 +121,9 @@ const DISTANCE_FILTERS = [
 ]
 
 const LAYER_FILTERS = [
-  { value: 'infra',  label: '🏟️ Terrains' },
-  { value: 'coaches', label: '🏅 Coachs' },
-  { value: 'events',  label: '⚡ Événements' },
+  { value: 'infra',   label: 'Terrains' },
+  { value: 'coaches', label: 'Coachs' },
+  { value: 'events',  label: 'Événements' },
 ]
 
 export default function MapPage() {
@@ -146,18 +146,7 @@ export default function MapPage() {
   const [dataLoading, setDataLoading]     = useState(true)
   const [locating, setLocating]           = useState(false)
 
-  // ── Geolocation on mount ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLat(pos.coords.latitude)
-        setUserLng(pos.coords.longitude)
-        setHasLocation(true)
-      },
-      () => { /* keep Paris default */ }
-    )
-  }, [])
+  // Géolocalisation uniquement via le bouton "Me localiser" — on garde Lille par défaut
 
   // ── Fetch all data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -335,7 +324,7 @@ export default function MapPage() {
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                       {c.profile?.avatar_url ? (
                         <img src={c.profile.avatar_url} alt={c.profile.name} className="w-full h-full object-cover" />
-                      ) : <div className="w-full h-full flex items-center justify-center text-lg">{c.sport?.icon}</div>}
+                      ) : <div className="w-full h-full flex items-center justify-center bg-primary-50 text-primary-700 font-bold text-sm">{c.profile?.name?.[0] ?? 'C'}</div>}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-900 truncate">{c.profile?.name?.split(' ')[0]}</p>
@@ -356,8 +345,11 @@ export default function MapPage() {
                     onClick={() => handleInfraClick(i)}
                     className="flex-shrink-0 bg-white rounded-2xl shadow-card border border-gray-100 p-3 flex items-center gap-2 min-w-[160px]"
                   >
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl bg-gray-50 flex-shrink-0">
-                      {sportTypeIcon(i.type)}
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary-50 flex-shrink-0">
+                      <svg className="w-5 h-5 text-primary-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-gray-900 truncate">{i.name}</p>
@@ -391,10 +383,3 @@ export default function MapPage() {
   )
 }
 
-function sportTypeIcon(type: string): string {
-  const icons: Record<string, string> = {
-    football: '⚽', basketball: '🏀', tennis: '🎾', running: '🏃',
-    gym: '💪', swimming: '🏊', volleyball: '🏐', padel: '🏓', other: '🏅',
-  }
-  return icons[type] ?? '🏅'
-}
