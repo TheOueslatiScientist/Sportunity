@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { InfraType } from '@prisma/client'
 
 export const TOOL_DEFINITIONS = [
   {
@@ -85,7 +86,7 @@ export async function executeTool(name: string, args: Record<string, string>): P
         const infras = await prisma.infrastructure.findMany({
           where: {
             ...(args.city ? { address: { contains: args.city, mode: 'insensitive' } } : {}),
-            ...(args.sport ? { type: args.sport.toUpperCase() as never } : {}),
+            ...(args.sport ? { type: args.sport.toUpperCase() as InfraType } : {}),
           },
           include: { sport: true },
           take: 5,

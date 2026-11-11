@@ -5,22 +5,29 @@ import { TOOL_DEFINITIONS, executeTool } from '@/lib/chatbot/tools'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-type Message = { role: 'user' | 'assistant' | 'tool'; content: string; tool_call_id?: string }
+type UserMessage = { role: 'user' | 'assistant'; content: string }
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json() as { messages: Message[] }
+    const { messages } = (await req.json()) as { messages: UserMessage[] }
 
+    // Build history — only user/assistant turns from client
     const history: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.map((m) => ({ role: m.role, content: m.content }) as Groq.Chat.ChatCompletionMessageParam),
+      ...messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
     ]
 
-    // Agent loop: max 3 tool call rounds
+    // Agent loop — max 3 tool-call rounds
     for (let round = 0; round < 3; round++) {
       const response = await groq.chat.completions.create({
         model: 'llama-3.3-70b-versatile',
-        messages: history,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        messages: history as any,
         tools: TOOL_DEFINITIONS,
         tool_choice: 'auto',
         max_tokens: 1024,
@@ -31,8 +38,15 @@ export async function POST(req: NextRequest) {
       const msg = choice.message
 
       if (choice.finish_reason === 'tool_calls' && msg.tool_calls?.length) {
-        history.push(msg)
+        // Append assistant message with tool_calls
+        history.push({
+          role: 'assistant',
+          content: msg.content ?? '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tool_calls: msg.tool_calls as any,
+        } as Groq.Chat.ChatCompletionMessageParam)
 
+        // Execute each tool and append results
         for (const call of msg.tool_calls) {
           const args = JSON.parse(call.function.arguments || '{}') as Record<string, string>
           const result = await executeTool(call.function.name, args)
@@ -40,7 +54,7 @@ export async function POST(req: NextRequest) {
             role: 'tool',
             tool_call_id: call.id,
             content: result,
-          })
+          } as Groq.Chat.ChatCompletionMessageParam)
         }
         continue
       }
@@ -48,7 +62,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: msg.content ?? '' })
     }
 
-    return NextResponse.json({ reply: 'Désolé, je n\'ai pas pu trouver une réponse. Réessaie avec plus de détails.' })
+    return NextResponse.json({
+      reply: "Désolé, je n'ai pas pu trouver une réponse. Réessaie avec plus de détails.",
+    })
   } catch (err) {
     console.error('[chat]', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
