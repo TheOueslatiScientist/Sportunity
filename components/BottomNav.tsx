@@ -60,9 +60,9 @@ export default function BottomNav() {
   ]
 
   const createOptions = [
-    { label: 'Publier', href: '/feed?compose=1', icon: '✏️' },
-    { label: 'Événement', href: '/events/new', icon: '📅' },
-    { label: 'Match', href: '/matches/new', icon: '⚽' },
+    { label: 'Publier', href: '/feed?compose=1' },
+    { label: 'Événement', href: '/events/new' },
+    { label: 'Match', href: '/matches/new' },
   ]
 
   function NavItem({ href, label, icon, badge }: { href: string; label: string; icon: (a: boolean) => React.ReactNode; badge?: number }) {
@@ -93,7 +93,6 @@ export default function BottomNav() {
             {createOptions.map((o) => (
               <Link key={o.href} href={o.href} onClick={() => setShowCreate(false)}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors text-sm font-semibold text-gray-800">
-                <span className="text-lg">{o.icon}</span>
                 {o.label}
               </Link>
             ))}

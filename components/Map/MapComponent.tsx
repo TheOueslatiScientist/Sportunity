@@ -1,7 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Infrastructure, SportEvent, Coach } from '@/types'
-import { sportTypeColor, sportTypeIcon } from '@/lib/utils'
+import { sportTypeColor } from '@/lib/utils'
+
+const SPORT_INITIALS: Record<string, string> = {
+  football: 'F', basketball: 'B', tennis: 'T', running: 'R',
+  gym: 'G', swimming: 'N', volleyball: 'V', padel: 'P', other: '?',
+}
 
 interface MapComponentProps {
   infrastructures: Infrastructure[]
@@ -75,7 +80,7 @@ export default function MapComponent({
       })
       const userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
         .addTo(map)
-        .bindPopup('<strong>📍 Vous êtes ici</strong>')
+        .bindPopup('<strong>Vous êtes ici</strong>')
       userMarkerRef.current = userMarker
 
       mapRef.current = map
@@ -105,8 +110,8 @@ export default function MapComponent({
       markersRef.current = []
 
       infrastructures.forEach((infra) => {
-        const color = sportTypeColor(infra.type)
-        const icon  = sportTypeIcon(infra.type)
+        const color   = sportTypeColor(infra.type)
+        const initial = SPORT_INITIALS[infra.type] ?? '?'
         const eventsHere = events.filter((e) => e.infrastructure_id === infra.id).length
 
         const statusColor =
@@ -120,9 +125,9 @@ export default function MapComponent({
         const markerHtml = `
           <div style="position:relative;width:44px;height:52px;display:flex;flex-direction:column;align-items:center;cursor:pointer">
             <div style="width:44px;height:44px;border-radius:14px;background:${color}22;border:2.5px solid ${color}66;
-              display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;
+              display:flex;align-items:center;justify-content:center;position:relative;
               box-shadow:0 4px 12px ${color}30;">
-              ${icon}
+              <span style="font-size:16px;font-weight:800;color:${color};font-family:system-ui,sans-serif;line-height:1">${initial}</span>
               <div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:${statusColor};border:2.5px solid #fff"></div>
               ${badgeHtml}
             </div>
@@ -152,11 +157,11 @@ export default function MapComponent({
         if (!coach.lat || !coach.lng) return
 
         const sportColor = coach.sport?.color ?? '#8b5cf6'
-        const sportIcon  = coach.sport?.icon ?? '🏅'
         const availDot   = coach.is_available_now ? '#22c55e' : '#9ca3af'
+        const nameInitial = (coach.profile?.name ?? coach.sport?.name ?? 'C').charAt(0).toUpperCase()
         const avatar     = coach.profile?.avatar_url
           ? `<img src="${coach.profile.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover"/>`
-          : `<span style="font-size:16px">${sportIcon}</span>`
+          : `<span style="font-size:16px;font-weight:800;color:${sportColor};font-family:system-ui,sans-serif;line-height:1">${nameInitial}</span>`
 
         const markerHtml = `
           <div style="position:relative;width:44px;height:54px;display:flex;flex-direction:column;align-items:center;cursor:pointer">

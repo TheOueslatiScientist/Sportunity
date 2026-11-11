@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import Chatbot from '@/components/Chatbot'
 
 export const metadata: Metadata = {
   title: 'Sportunity',
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className="bg-gray-50 font-sans">
         {children}
+        <Chatbot />
       </body>
     </html>
   )
