@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     // Agent loop — max 3 tool-call rounds
     for (let round = 0; round < 3; round++) {
       const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama3-70b-8192',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         messages: history as any,
         tools: TOOL_DEFINITIONS,
