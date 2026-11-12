@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { InfraType } from '@prisma/client'
+import { InfraType, Prisma } from '@prisma/client'
 
 const MEL_EPCI = '200093201'
 const API_BASE = 'https://equipements.sports.gouv.fr/api/explore/v2.1/catalog/datasets/data-es/records'
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   const records = data.results ?? []
 
   // Filter + map
-  const toInsert: Parameters<typeof prisma.infrastructure.createMany>[0]['data'] = []
+  const toInsert: Prisma.InfrastructureCreateManyInput[] = []
   for (const rec of records) {
     const lat = rec.equip_coordonnees?.lat ?? (rec.equip_y ? parseFloat(rec.equip_y) : null)
     const lng = rec.equip_coordonnees?.lon ?? (rec.equip_x ? parseFloat(rec.equip_x) : null)
