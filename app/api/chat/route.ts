@@ -3,7 +3,7 @@ import Groq from 'groq-sdk'
 import { SYSTEM_PROMPT } from '@/lib/chatbot/prompts'
 import { TOOL_DEFINITIONS, executeTool } from '@/lib/chatbot/tools'
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY ?? '' })
 
 type UserMessage = { role: 'user' | 'assistant'; content: string }
 

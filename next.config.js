@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['groq-sdk'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'api.dicebear.com' },
