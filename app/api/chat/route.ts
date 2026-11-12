@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
       reply: "Désolé, je n'ai pas pu trouver une réponse. Réessaie avec plus de détails.",
     })
   } catch (err) {
-    console.error('[chat]', err)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[chat]', msg)
+    return NextResponse.json({ reply: `Erreur: ${msg}` })
   }
 }
