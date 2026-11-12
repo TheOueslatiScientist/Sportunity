@@ -24,27 +24,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  const delta = radius / 111
-  const infras = await prisma.infrastructure.findMany({
-    where: {
-      lat: { gte: lat - delta, lte: lat + delta },
-      lng: { gte: lng - delta, lte: lng + delta },
-      ...(type && type !== 'all' ? { type: type.toUpperCase() as any } : {}),
-    },
-    include: { sport: true },
-  })
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const delta = radius / 111
+    const infras = await prisma.infrastructure.findMany({
+      where: {
+        lat: { gte: lat - delta, lte: lat + delta },
+        lng: { gte: lng - delta, lte: lng + delta },
+        ...(type && type !== 'all' ? { type: type.toUpperCase() as any } : {}),
+      },
+    })
 
-  const data = infras
-    .map((i) => ({
-      id: i.id, name: i.name, type: i.type.toLowerCase(),
-      address: i.address, lat: i.lat, lng: i.lng,
-      is_public: i.isPublic, status: i.status.toLowerCase(),
-      image_url: i.imageUrl, sport: i.sport,
-      distance: haversineDistance(lat, lng, i.lat, i.lng),
-    }))
-    .filter((i) => i.distance <= radius)
-    .sort((a, b) => a.distance - b.distance)
+    const data = infras
+      .map((i) => ({
+        id: i.id, name: i.name, type: i.type.toLowerCase(),
+        address: i.address, lat: i.lat, lng: i.lng,
+        is_public: i.isPublic, status: i.status.toLowerCase(),
+        image_url: i.imageUrl,
+        distance: haversineDistance(lat, lng, i.lat, i.lng),
+      }))
+      .filter((i) => i.distance <= radius)
+      .sort((a, b) => a.distance - b.distance)
 
-  return NextResponse.json({ data })
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[nearby]', err)
+    return NextResponse.json({ error: String(err), data: [] }, { status: 500 })
+  }
 }
