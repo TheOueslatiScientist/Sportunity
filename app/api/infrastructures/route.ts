@@ -19,32 +19,36 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
+  try {
+    const { prisma } = await import('@/lib/prisma')
 
-  const where: any = {}
-  if (type && type !== 'all') where.type = type.toUpperCase()
-  if (status && status !== 'all') where.status = status.toUpperCase()
-  if (isPublic === 'true') where.isPublic = true
-  if (isPublic === 'false') where.isPublic = false
+    const where: any = {}
+    if (type && type !== 'all') where.type = type.toUpperCase()
+    if (status && status !== 'all') where.status = status.toUpperCase()
+    if (isPublic === 'true') where.isPublic = true
+    if (isPublic === 'false') where.isPublic = false
 
-  const infras = await prisma.infrastructure.findMany({
-    where,
-    include: { sport: true },
-    orderBy: { name: 'asc' },
-  })
+    const infras = await prisma.infrastructure.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      take: 500,
+    })
 
-  const data = infras.map((i) => ({
-    id: i.id,
-    name: i.name,
-    type: i.type.toLowerCase(),
-    address: i.address,
-    lat: i.lat,
-    lng: i.lng,
-    is_public: i.isPublic,
-    status: i.status.toLowerCase(),
-    image_url: i.imageUrl,
-    sport: i.sport,
-  }))
+    const data = infras.map((i) => ({
+      id: i.id,
+      name: i.name,
+      type: i.type.toLowerCase(),
+      address: i.address,
+      lat: i.lat,
+      lng: i.lng,
+      is_public: i.isPublic,
+      status: i.status.toLowerCase(),
+      image_url: i.imageUrl,
+    }))
 
-  return NextResponse.json({ data })
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[infrastructures]', err)
+    return NextResponse.json({ error: String(err), data: [] }, { status: 500 })
+  }
 }
