@@ -172,7 +172,8 @@ export default function MapPage() {
         setUserLng(pos.coords.longitude)
         setHasLocation(true)
       },
-      () => { /* refusé — garde Lille par défaut mais hasLocation reste false */ }
+      () => { /* refusé ou timeout — hasLocation reste false, pas de point affiché */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }, [])
 
@@ -243,7 +244,8 @@ export default function MapPage() {
         setHasLocation(true)
         setLocating(false)
       },
-      () => setLocating(false)
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
 
