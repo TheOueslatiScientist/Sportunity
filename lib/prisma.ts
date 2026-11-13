@@ -8,7 +8,7 @@ function createPrismaClient() {
   const pool = process.env.DB_PASSWORD
     ? new Pool({
         host: 'aws-1-eu-central-1.pooler.supabase.com',
-        port: 6543,
+        port: 5432,
         database: 'postgres',
         user: 'postgres.nxotvuxyhjmlrbpzbudg',
         password: process.env.DB_PASSWORD,
