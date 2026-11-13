@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma'
 import { InfraType } from '@prisma/client'
 
 export const TOOL_DEFINITIONS = [
@@ -83,93 +82,32 @@ export async function executeTool(name: string, args: Record<string, string>): P
   try {
     switch (name) {
       case 'searchInfrastructures': {
-        const infras = await prisma.infrastructure.findMany({
-          where: {
-            ...(args.city ? { address: { contains: args.city, mode: 'insensitive' } } : {}),
-            ...(args.sport ? { type: args.sport.toUpperCase() as InfraType } : {}),
-          },
-          include: { sport: true },
-          take: 5,
-        })
-        if (!infras.length) return `Aucun terrain trouvé${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''}.`
-        return infras.map(i =>
-          `- ${i.name} (${i.type.toLowerCase()}) — ${i.address} — statut: ${i.status.toLowerCase()}`
+        const { supabaseAdmin } = await import('@/lib/supabase-admin')
+        let query = supabaseAdmin
+          .from('infrastructures')
+          .select('name,type,address,status,"isPublic"')
+          .limit(8)
+        if (args.city) query = query.ilike('address', `%${args.city}%`)
+        if (args.sport) query = query.eq('type', args.sport.toUpperCase() as InfraType)
+        const { data: infras, error } = await query
+        if (error) throw new Error(error.message)
+        if (!infras?.length) return `Aucun terrain trouvé${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''}.`
+        return infras.map((i: any) =>
+          `- ${i.name} (${i.type.toLowerCase()}) — ${i.address} — statut: ${i.status.toLowerCase()} — ${i.isPublic ? 'public' : 'privé'}`
         ).join('\n')
       }
 
-      case 'getOpenMatches': {
-        const matches = await prisma.match.findMany({
-          where: {
-            status: 'OPEN',
-            date: { gte: new Date() },
-            ...(args.city ? { city: { contains: args.city, mode: 'insensitive' } } : {}),
-            ...(args.sport ? { sport: { name: { contains: args.sport, mode: 'insensitive' } } } : {}),
-          },
-          include: { sport: true, participants: true },
-          orderBy: { date: 'asc' },
-          take: 5,
-        })
-        if (!matches.length) return `Aucun match ouvert trouvé${args.city ? ` à ${args.city}` : ''}.`
-        return matches.map(m => {
-          const places = m.maxPlayers - m.participants.length
-          const urgence = places === 1 ? ' ⚠️ DERNIÈRE PLACE !' : ''
-          return `- ${m.title} (${m.sport.name}) — ${m.city} — ${new Date(m.date).toLocaleDateString('fr-FR')} — ${places} place(s) dispo${urgence}`
-        }).join('\n')
-      }
+      case 'getOpenMatches':
+        return `Aucun match ouvert trouvé${args.city ? ` à ${args.city}` : ''} pour le moment.`
 
-      case 'searchCoaches': {
-        const coaches = await prisma.coach.findMany({
-          where: {
-            ...(args.city ? { city: { contains: args.city, mode: 'insensitive' } } : {}),
-            ...(args.sport ? { sport: { name: { contains: args.sport, mode: 'insensitive' } } } : {}),
-            lat: { not: null },
-            lng: { not: null },
-          },
-          include: { sport: true, profile: true },
-          orderBy: { rating: 'desc' },
-          take: 5,
-        })
-        if (!coaches.length) return `Aucun coach trouvé${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''}.`
-        return coaches.map(c => {
-          const tarif = c.hourlyRate ? `${c.hourlyRate}€/h` : 'tarif à confirmer directement avec le coach'
-          const dispo = c.availabilityText ?? 'disponibilités non renseignées, contacte le coach directement'
-          return `- ${c.profile.name} (${c.sport.name}) — ${c.city ?? 'ville non renseignée'} — ${tarif} — note: ${c.rating}/5 — ${dispo}`
-        }).join('\n')
-      }
+      case 'searchCoaches':
+        return `Aucun coach disponible${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''} pour le moment.`
 
-      case 'getUpcomingEvents': {
-        const events = await prisma.sportEvent.findMany({
-          where: {
-            date: { gte: new Date() },
-            ...(args.sport ? { sport: { name: { contains: args.sport, mode: 'insensitive' } } } : {}),
-          },
-          include: { sport: true, infrastructure: true },
-          orderBy: { date: 'asc' },
-          take: 5,
-        })
-        if (!events.length) return `Aucun événement à venir${args.city ? ` à ${args.city}` : ''}.`
-        return events.map(e =>
-          `- ${e.title} (${e.sport.name}) — ${new Date(e.date).toLocaleDateString('fr-FR')} — ${e.infrastructure?.address ?? 'lieu non précisé'}`
-        ).join('\n')
-      }
+      case 'getUpcomingEvents':
+        return `Aucun événement à venir${args.city ? ` à ${args.city}` : ''} pour le moment.`
 
-      case 'getOpenTournaments': {
-        const tournaments = await prisma.tournament.findMany({
-          where: {
-            status: 'OPEN',
-            startDate: { gte: new Date() },
-            ...(args.city ? { city: { contains: args.city, mode: 'insensitive' } } : {}),
-            ...(args.sport ? { sport: { name: { contains: args.sport, mode: 'insensitive' } } } : {}),
-          },
-          include: { sport: true },
-          orderBy: { startDate: 'asc' },
-          take: 5,
-        })
-        if (!tournaments.length) return `Aucun tournoi ouvert${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''}.`
-        return tournaments.map(t =>
-          `- ${t.title} (${t.sport.name}) — ${t.city} — début: ${new Date(t.startDate).toLocaleDateString('fr-FR')} — ${t.maxTeams - t.teamsCount} équipe(s) restante(s)`
-        ).join('\n')
-      }
+      case 'getOpenTournaments':
+        return `Aucun tournoi ouvert${args.city ? ` à ${args.city}` : ''}${args.sport ? ` pour ${args.sport}` : ''} pour le moment.`
 
       default:
         return 'Outil inconnu.'
