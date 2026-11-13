@@ -168,6 +168,8 @@ export default function MapPage() {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // Reject IP-based geolocation (accuracy > 5km means no real GPS)
+        if (pos.coords.accuracy > 5000) return
         setUserLat(pos.coords.latitude)
         setUserLng(pos.coords.longitude)
         setHasLocation(true)
@@ -239,10 +241,11 @@ export default function MapPage() {
     setLocating(true)
     navigator.geolocation?.getCurrentPosition(
       (pos) => {
+        setLocating(false)
+        if (pos.coords.accuracy > 5000) return // too inaccurate (IP-based)
         setUserLat(pos.coords.latitude)
         setUserLng(pos.coords.longitude)
         setHasLocation(true)
-        setLocating(false)
       },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
