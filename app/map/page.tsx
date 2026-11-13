@@ -153,9 +153,9 @@ export default function MapPage() {
     const token = getAuthToken() ?? ''
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
     Promise.all([
-      fetch('/api/infrastructures').then((r) => r.json()),
-      fetch('/api/events', { headers }).then((r) => r.json()),
-      fetch('/api/coaches').then((r) => r.json()),
+      fetch('/api/infrastructures').then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch('/api/events', { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch('/api/coaches').then((r) => r.json()).catch(() => ({ data: [] })),
     ]).then(([infraRes, eventsRes, coachesRes]) => {
       setInfrastructures(infraRes.data ?? [])
       setEvents(eventsRes.data ?? [])

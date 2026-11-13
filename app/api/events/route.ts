@@ -18,28 +18,33 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
+  try {
+    const { prisma } = await import('@/lib/prisma')
 
-  const where: any = { date: { gt: new Date() } }
-  if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
-  if (level && level !== 'all') where.level = level
+    const where: any = { date: { gt: new Date() } }
+    if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
+    if (level && level !== 'all') where.level = level
 
-  const events = await prisma.sportEvent.findMany({
-    where,
-    include: { sport: true, infrastructure: true },
-    orderBy: { date: 'asc' },
-  })
+    const events = await prisma.sportEvent.findMany({
+      where,
+      include: { sport: true, infrastructure: true },
+      orderBy: { date: 'asc' },
+    })
 
-  const data = events.map((e) => ({
-    id: e.id, title: e.title, sport_id: e.sportId, sport: e.sport,
-    infrastructure_id: e.infrastructureId, infrastructure: e.infrastructure,
-    creator_id: e.creatorId, date: e.date.toISOString(),
-    max_participants: e.maxParticipants, description: e.description,
-    level: e.level, participants_count: 0, participants: [],
-    created_at: e.createdAt.toISOString(),
-  }))
+    const data = events.map((e) => ({
+      id: e.id, title: e.title, sport_id: e.sportId, sport: e.sport,
+      infrastructure_id: e.infrastructureId, infrastructure: e.infrastructure,
+      creator_id: e.creatorId, date: e.date.toISOString(),
+      max_participants: e.maxParticipants, description: e.description,
+      level: e.level, participants_count: 0, participants: [],
+      created_at: e.createdAt.toISOString(),
+    }))
 
-  return NextResponse.json({ data })
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[GET /api/events]', err)
+    return NextResponse.json({ data: [] })
+  }
 }
 
 export async function POST(req: NextRequest) {

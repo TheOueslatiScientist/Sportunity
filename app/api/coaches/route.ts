@@ -40,41 +40,46 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
+  try {
+    const { prisma } = await import('@/lib/prisma')
 
-  const where: any = {}
-  if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
-  if (maxPrice) where.hourlyRate = { lte: parseFloat(maxPrice) }
-  if (available === 'true') where.isAvailableNow = true
-  if (certified === 'true') where.isCertified = true
+    const where: any = {}
+    if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
+    if (maxPrice) where.hourlyRate = { lte: parseFloat(maxPrice) }
+    if (available === 'true') where.isAvailableNow = true
+    if (certified === 'true') where.isCertified = true
 
-  const coaches = await prisma.coach.findMany({
-    where,
-    include: { profile: true, sport: true },
-    orderBy: { rating: 'desc' },
-  })
+    const coaches = await prisma.coach.findMany({
+      where,
+      include: { profile: true, sport: true },
+      orderBy: { rating: 'desc' },
+    })
 
-  let data = coaches.map((c) => {
-    const distance = userLat && userLng && c.lat && c.lng ? haversine(userLat, userLng, c.lat, c.lng) : undefined
-    return {
-      id: c.id, user_id: c.profileId, profile: serializeProfile(c.profile),
-      sport_id: c.sportId, sport: c.sport, hourly_rate: c.hourlyRate,
-      description: c.description, experience_years: c.experienceYears,
-      rating: c.rating, reviews_count: c.reviewsCount,
-      certifications: c.certifications, specialties: c.specialties,
-      city: c.city, lat: c.lat, lng: c.lng, languages: c.languages,
-      availability_text: c.availabilityText, is_available_now: c.isAvailableNow,
-      is_certified: c.isCertified, is_popular: c.isPopular,
-      clients_count: c.clientsCount, sessions_count: c.sessionsCount, distance,
+    let data = coaches.map((c) => {
+      const distance = userLat && userLng && c.lat && c.lng ? haversine(userLat, userLng, c.lat, c.lng) : undefined
+      return {
+        id: c.id, user_id: c.profileId, profile: serializeProfile(c.profile),
+        sport_id: c.sportId, sport: c.sport, hourly_rate: c.hourlyRate,
+        description: c.description, experience_years: c.experienceYears,
+        rating: c.rating, reviews_count: c.reviewsCount,
+        certifications: c.certifications, specialties: c.specialties,
+        city: c.city, lat: c.lat, lng: c.lng, languages: c.languages,
+        availability_text: c.availabilityText, is_available_now: c.isAvailableNow,
+        is_certified: c.isCertified, is_popular: c.isPopular,
+        clients_count: c.clientsCount, sessions_count: c.sessionsCount, distance,
+      }
+    })
+
+    if (userLat && userLng) {
+      if (maxDist) data = data.filter((c) => !c.distance || c.distance <= maxDist)
+      data.sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
     }
-  })
 
-  if (userLat && userLng) {
-    if (maxDist) data = data.filter((c) => !c.distance || c.distance <= maxDist)
-    data.sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error('[GET /api/coaches]', err)
+    return NextResponse.json({ data: [] })
   }
-
-  return NextResponse.json({ data })
 }
 
 export async function POST(req: NextRequest) {
