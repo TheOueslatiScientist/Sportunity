@@ -8,6 +8,9 @@ import { useRouter } from 'next/navigation'
 interface InfrastructureSheetProps {
   infrastructure: Infrastructure | null
   events?: SportEvent[]
+  userLat?: number
+  userLng?: number
+  routeInfo?: { distance: number; duration: number } | null
   onClose: () => void
   onJoinEvent?: (id: number) => void
 }
@@ -40,9 +43,23 @@ function OccupancyBar({ status, id }: { status: string; id: number }) {
   )
 }
 
+function formatDuration(seconds: number): string {
+  const mins = Math.round(seconds / 60)
+  if (mins < 60) return `${mins} min`
+  return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`
+  return `${(meters / 1000).toFixed(1)} km`
+}
+
 export default function InfrastructureSheet({
   infrastructure,
   events = [],
+  userLat,
+  userLng,
+  routeInfo,
   onClose,
   onJoinEvent,
 }: InfrastructureSheetProps) {
@@ -151,8 +168,43 @@ export default function InfrastructureSheet({
             </div>
           )}
 
+          {/* Route info banner */}
+          {routeInfo && (
+            <div className="flex items-center gap-3 bg-indigo-50 rounded-2xl px-4 py-3">
+              <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-indigo-900">À pied</p>
+                <p className="text-xs text-indigo-600">
+                  {formatDistance(routeInfo.distance)} · {formatDuration(routeInfo.duration)}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* CTAs */}
           <div className="flex flex-col gap-3 pt-1">
+            {/* Navigate button — always shown when user position is known */}
+            {userLat != null && userLng != null && (
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${infrastructure.lat},${infrastructure.lng}&travelmode=walking`
+                  window.open(url, '_blank')
+                }}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                  Naviguer vers ce terrain
+                </span>
+              </Button>
+            )}
             {infrastructure.status === 'available' && (
               <Button
                 fullWidth
@@ -164,11 +216,7 @@ export default function InfrastructureSheet({
                 Créer un événement ici
               </Button>
             )}
-            <Button
-              variant="secondary"
-              fullWidth
-              onClick={onClose}
-            >
+            <Button variant="secondary" fullWidth onClick={onClose}>
               Fermer
             </Button>
           </div>

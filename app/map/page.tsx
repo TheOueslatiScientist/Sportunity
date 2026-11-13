@@ -153,6 +153,7 @@ export default function MapPage() {
   const [userLat, setUserLat] = useState(50.6292)
   const [userLng, setUserLng] = useState(3.0573)
   const [hasLocation, setHasLocation] = useState(false)
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null)
   const [sportFilter, setSportFilter]     = useState('all')
   const [statusFilter, setStatusFilter]   = useState('all')
   const [accessFilter, setAccessFilter]   = useState('all')
@@ -162,7 +163,18 @@ export default function MapPage() {
   const [dataLoading, setDataLoading]     = useState(true)
   const [locating, setLocating]           = useState(false)
 
-  // Géolocalisation uniquement via le bouton "Me localiser" — on garde Lille par défaut
+  // ── Géolocalisation automatique au chargement ─────────────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLat(pos.coords.latitude)
+        setUserLng(pos.coords.longitude)
+        setHasLocation(true)
+      },
+      () => { /* refusé — garde Lille par défaut mais hasLocation reste false */ }
+    )
+  }, [])
 
   // ── Fetch all data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -225,9 +237,19 @@ export default function MapPage() {
   function recenter() {
     setLocating(true)
     navigator.geolocation?.getCurrentPosition(
-      (pos) => { setUserLat(pos.coords.latitude); setUserLng(pos.coords.longitude); setHasLocation(true); setLocating(false) },
+      (pos) => {
+        setUserLat(pos.coords.latitude)
+        setUserLng(pos.coords.longitude)
+        setHasLocation(true)
+        setLocating(false)
+      },
       () => setLocating(false)
     )
+  }
+
+  function handleCloseInfra() {
+    setSelectedInfra(null)
+    setRouteInfo(null)
   }
 
   const visibleCoaches = layerFilter === 'coaches' ? filteredCoaches : []
@@ -361,8 +383,11 @@ export default function MapPage() {
           events={events}
           userLat={userLat}
           userLng={userLng}
+          hasLocation={hasLocation}
+          selectedInfra={selectedInfra}
           onInfrastructureClick={handleInfraClick}
           onCoachClick={handleCoachClick}
+          onRouteInfo={setRouteInfo}
         />
 
         {/* Me localiser */}
@@ -441,7 +466,10 @@ export default function MapPage() {
       <InfrastructureSheet
         infrastructure={selectedInfra}
         events={events}
-        onClose={() => setSelectedInfra(null)}
+        userLat={hasLocation ? userLat : undefined}
+        userLng={hasLocation ? userLng : undefined}
+        routeInfo={routeInfo}
+        onClose={handleCloseInfra}
         onJoinEvent={handleJoinEvent}
       />
 

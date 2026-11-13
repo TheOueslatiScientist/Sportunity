@@ -14,30 +14,39 @@ interface MapComponentProps {
   events?: SportEvent[]
   userLat?: number
   userLng?: number
+  hasLocation?: boolean
+  selectedInfra?: Infrastructure | null
   onInfrastructureClick?: (infra: Infrastructure) => void
   onCoachClick?: (coach: Coach) => void
+  onRouteInfo?: (info: { distance: number; duration: number } | null) => void
 }
 
 export default function MapComponent({
   infrastructures,
   coaches = [],
   events = [],
-  userLat = 48.8566,
-  userLng = 2.3522,
+  userLat = 50.6292,
+  userLng = 3.0573,
+  hasLocation = false,
+  selectedInfra = null,
   onInfrastructureClick,
   onCoachClick,
+  onRouteInfo,
 }: MapComponentProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const markersRef = useRef<import('leaflet').Marker[]>([])
   const coachMarkersRef = useRef<import('leaflet').Marker[]>([])
   const userMarkerRef = useRef<import('leaflet').Marker | null>(null)
+  const routeLayerRef = useRef<import('leaflet').Polyline | null>(null)
   const onClickRef = useRef(onInfrastructureClick)
   const onCoachClickRef = useRef(onCoachClick)
+  const onRouteInfoRef = useRef(onRouteInfo)
   const [ready, setReady] = useState(false)
 
   useEffect(() => { onClickRef.current = onInfrastructureClick }, [onInfrastructureClick])
   useEffect(() => { onCoachClickRef.current = onCoachClick }, [onCoachClick])
+  useEffect(() => { onRouteInfoRef.current = onRouteInfo }, [onRouteInfo])
 
   // ── Init map (once) ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -69,16 +78,16 @@ export default function MapComponent({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-      // User dot
+      // User dot — only shown when real GPS is available
       const userIcon = L.divIcon({
-        html: `<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 2px 12px rgba(59,130,246,.6)">
+        html: `<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 2px 12px rgba(59,130,246,.6);position:relative">
                  <div style="position:absolute;inset:-6px;border-radius:50%;background:rgba(59,130,246,.2);animation:ping 1.5s infinite"></div>
                </div>`,
         className: '',
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       })
-      const userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
+      const userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000, opacity: 0 })
         .addTo(map)
         .bindPopup('<strong>Vous êtes ici</strong>')
       userMarkerRef.current = userMarker
@@ -93,11 +102,65 @@ export default function MapComponent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Update user marker position ────────────────────────────────────────────
+  // ── Update user marker position + visibility ──────────────────────────────
   useEffect(() => {
-    if (!ready || !mapRef.current || !userMarkerRef.current) return
+    if (!ready || !userMarkerRef.current) return
     userMarkerRef.current.setLatLng([userLat, userLng])
-  }, [ready, userLat, userLng])
+    userMarkerRef.current.setOpacity(hasLocation ? 1 : 0)
+  }, [ready, userLat, userLng, hasLocation])
+
+  // ── Route drawing via OSRM ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!ready || !mapRef.current) return
+
+    import('leaflet').then(async (L) => {
+      if (!mapRef.current) return
+
+      // Clear previous route
+      if (routeLayerRef.current) {
+        routeLayerRef.current.remove()
+        routeLayerRef.current = null
+      }
+      onRouteInfoRef.current?.(null)
+
+      if (!selectedInfra || !hasLocation) return
+
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${userLng},${userLat};${selectedInfra.lng},${selectedInfra.lat}?geometries=geojson&overview=full`
+        const res = await fetch(url)
+        if (!res.ok) return
+        const data = await res.json()
+        const route = data.routes?.[0]
+        if (!route) return
+
+        const coords: [number, number][] = route.geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng]
+        )
+
+        const polyline = L.polyline(coords, {
+          color: '#6366f1',
+          weight: 4,
+          opacity: 0.85,
+          dashArray: undefined,
+        }).addTo(mapRef.current!)
+        routeLayerRef.current = polyline
+
+        // Fit map to show both user and destination
+        const bounds = L.latLngBounds([
+          [userLat, userLng],
+          [selectedInfra.lat, selectedInfra.lng],
+        ])
+        mapRef.current!.fitBounds(bounds, { padding: [60, 60] })
+
+        onRouteInfoRef.current?.({
+          distance: route.distance,
+          duration: route.duration,
+        })
+      } catch {
+        // silently fail — user can still use Google Maps button
+      }
+    })
+  }, [ready, selectedInfra, userLat, userLng, hasLocation])
 
   // ── Infrastructure markers ─────────────────────────────────────────────────
   useEffect(() => {
