@@ -8,7 +8,6 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status')
   const isPublic = searchParams.get('public')
 
-  // ── Mock mode ────────────────────────────────────────────────────────────────
   if (useMockData) {
     let data = [...INFRASTRUCTURES]
     if (type && type !== 'all') data = data.filter((i) => i.type === type)
@@ -18,31 +17,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
   try {
-    const { prisma } = await import('@/lib/prisma')
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    let query = supabaseAdmin
+      .from('infrastructures')
+      .select('id,name,type,address,lat,lng,"isPublic",status,"imageUrl"')
+      .order('name')
+      .limit(500)
 
-    const where: any = {}
-    if (type && type !== 'all') where.type = type.toUpperCase()
-    if (status && status !== 'all') where.status = status.toUpperCase()
-    if (isPublic === 'true') where.isPublic = true
-    if (isPublic === 'false') where.isPublic = false
+    if (type && type !== 'all') query = query.eq('type', type.toUpperCase())
+    if (status && status !== 'all') query = query.eq('status', status.toUpperCase())
+    if (isPublic === 'true') query = query.eq('"isPublic"', true)
+    if (isPublic === 'false') query = query.eq('"isPublic"', false)
 
-    const infras = await prisma.infrastructure.findMany({
-      where,
-      orderBy: { name: 'asc' },
-      take: 500,
-    })
+    const { data: rows, error } = await query
+    if (error) throw new Error(error.message)
 
-    const data = infras.map((i) => ({
-      id: i.id,
-      name: i.name,
-      type: i.type.toLowerCase(),
-      address: i.address,
-      lat: i.lat,
-      lng: i.lng,
-      is_public: i.isPublic,
-      status: i.status.toLowerCase(),
+    const data = (rows ?? []).map((i: any) => ({
+      id: i.id, name: i.name, type: i.type.toLowerCase(),
+      address: i.address, lat: i.lat, lng: i.lng,
+      is_public: i.isPublic, status: i.status.toLowerCase(),
       image_url: i.imageUrl,
     }))
 

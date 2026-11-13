@@ -25,26 +25,30 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { prisma } = await import('@/lib/prisma')
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
     const delta = radius / 111
-    const infras = await prisma.infrastructure.findMany({
-      where: {
-        lat: { gte: lat - delta, lte: lat + delta },
-        lng: { gte: lng - delta, lte: lng + delta },
-        ...(type && type !== 'all' ? { type: type.toUpperCase() as any } : {}),
-      },
-    })
 
-    const data = infras
-      .map((i) => ({
+    let query = supabaseAdmin
+      .from('infrastructures')
+      .select('id,name,type,address,lat,lng,"isPublic",status,"imageUrl"')
+      .gte('lat', lat - delta).lte('lat', lat + delta)
+      .gte('lng', lng - delta).lte('lng', lng + delta)
+
+    if (type && type !== 'all') query = query.eq('type', type.toUpperCase())
+
+    const { data: rows, error } = await query
+    if (error) throw new Error(error.message)
+
+    const data = (rows ?? [])
+      .map((i: any) => ({
         id: i.id, name: i.name, type: i.type.toLowerCase(),
         address: i.address, lat: i.lat, lng: i.lng,
         is_public: i.isPublic, status: i.status.toLowerCase(),
         image_url: i.imageUrl,
         distance: haversineDistance(lat, lng, i.lat, i.lng),
       }))
-      .filter((i) => i.distance <= radius)
-      .sort((a, b) => a.distance - b.distance)
+      .filter((i: any) => i.distance <= radius)
+      .sort((a: any, b: any) => a.distance - b.distance)
 
     return NextResponse.json({ data })
   } catch (err) {
