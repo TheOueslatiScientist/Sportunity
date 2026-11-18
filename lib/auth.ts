@@ -37,15 +37,17 @@ export async function getUserFromRequest(
 
   // Real mode: verify via Supabase, resolve integer Profile ID
   const { verifySupabaseToken } = await import('@/lib/supabase')
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
   const supabaseUser = await verifySupabaseToken(token)
   if (!supabaseUser) return null
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: supabaseUser.id },
-  })
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('id,email')
+    .eq('userId', supabaseUser.id)
+    .single()
   if (!profile) return null
 
-  return { userId: profile.id, email: supabaseUser.email! }
+  return { userId: profile.id, email: profile.email ?? supabaseUser.email! }
 }

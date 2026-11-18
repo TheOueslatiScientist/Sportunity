@@ -18,19 +18,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: users })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  const where: any = { NOT: { id: auth.userId as number } }
-  if (city) where.city = { contains: city, mode: 'insensitive' }
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  let query = supabaseAdmin
+    .from('profiles')
+    .select('id, name, avatarUrl, bio, city, level, isCoach, email')
+    .neq('id', auth.userId as number)
+    .limit(20)
+  if (city) query = query.ilike('city', `%${city}%`)
 
-  const profiles = await prisma.profile.findMany({
-    where,
-    include: { sports: { include: { sport: true } } },
-  })
-
-  const data = profiles.map((p) => ({
+  const { data: rows } = await query
+  const profiles = (rows ?? []).map((p: any) => ({
     id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl,
     bio: p.bio, city: p.city, level: p.level?.toLowerCase(), is_coach: p.isCoach,
-    sports: p.sports.map((ps) => ps.sport),
+    sports: [],
   }))
-  return NextResponse.json({ data })
+  return NextResponse.json({ data: profiles })
 }

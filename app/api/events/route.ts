@@ -17,27 +17,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
+  // ── Real mode: Supabase ───────────────────────────────────────────────────
   try {
-    const { prisma } = await import('@/lib/prisma')
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
-    const where: any = { date: { gt: new Date() } }
-    if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
-    if (level && level !== 'all') where.level = level
+    let query = supabaseAdmin
+      .from('sport_events')
+      .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt')
+      .gt('date', new Date().toISOString())
+      .order('date', { ascending: true })
 
-    const events = await prisma.sportEvent.findMany({
-      where,
-      include: { sport: true, infrastructure: true },
-      orderBy: { date: 'asc' },
-    })
+    if (sport && sport !== 'all') query = query.eq('sportId', sport)
+    if (level && level !== 'all') query = query.eq('level', level)
 
-    const data = events.map((e) => ({
-      id: e.id, title: e.title, sport_id: e.sportId, sport: e.sport,
-      infrastructure_id: e.infrastructureId, infrastructure: e.infrastructure,
-      creator_id: e.creatorId, date: e.date.toISOString(),
+    const { data: rows, error } = await query
+    if (error) throw error
+
+    const data = (rows ?? []).map((e: any) => ({
+      id: e.id, title: e.title, sport_id: e.sportId, sport: null,
+      infrastructure_id: e.infrastructureId, infrastructure: null,
+      creator_id: e.creatorId, date: e.date,
       max_participants: e.maxParticipants, description: e.description,
       level: e.level, participants_count: 0, participants: [],
-      created_at: e.createdAt.toISOString(),
+      created_at: e.createdAt,
     }))
 
     return NextResponse.json({ data })
@@ -70,17 +72,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: newEvent }, { status: 201 })
     }
 
-    // ── Real mode: Prisma ────────────────────────────────────────────────────────
-    const { prisma } = await import('@/lib/prisma')
-    const event = await prisma.sportEvent.create({
-      data: {
+    // ── Real mode: Supabase ───────────────────────────────────────────────────
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('sport_events')
+      .insert({
         title, sportId: sport_id, infrastructureId: infrastructure_id ?? null,
-        creatorId: auth.userId, date: new Date(date),
+        creatorId: auth.userId, date: new Date(date).toISOString(),
         maxParticipants: max_participants ?? 10, description, level: level ?? 'all',
-      },
-      include: { sport: true, infrastructure: true },
-    })
-    return NextResponse.json({ data: event }, { status: 201 })
+      })
+      .select()
+      .single()
+    if (eventError || !event) throw new Error(eventError?.message ?? 'Erreur création event')
+    return NextResponse.json({ data: { ...event, participants_count: 1, participants: [] } }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/events]', err)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })

@@ -6,8 +6,8 @@ import Cookies from 'js-cookie'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('alex@example.com')
-  const [password, setPassword] = useState('password123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -107,10 +107,6 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        <div className="mt-6 bg-gray-50 rounded-xl p-3 text-center border border-gray-100">
-          <p className="text-xs text-gray-500 font-medium">Compte de démo pré-rempli</p>
-          <p className="text-xs text-gray-400 mt-0.5">alex@example.com / password123</p>
-        </div>
       </div>
     </div>
   )

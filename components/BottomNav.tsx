@@ -1,24 +1,23 @@
 'use client'
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { getAuthToken } from '@/lib/client-utils'
+import { getStoredUser } from '@/lib/client-utils'
 
 export default function BottomNav() {
   const pathname = usePathname()
-  const router = useRouter()
-  const [unread, setUnread] = useState(0)
   const [showCreate, setShowCreate] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = getAuthToken()
-    if (!token) return
-    fetch('/api/messages/unread', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setUnread(d.count ?? 0))
-      .catch(() => {})
+    const user = getStoredUser()
+    if (user) {
+      setAvatarUrl(`https://api.dicebear.com/8.x/avataaars/svg?seed=${user.name ?? user.email}`)
+    } else {
+      setAvatarUrl(null)
+    }
   }, [pathname])
 
   const left = [
@@ -50,10 +49,14 @@ export default function BottomNav() {
       ),
     },
     {
-      href: '/chat', label: 'Messages', badge: unread,
-      icon: (a: boolean) => (
+      href: '/profile', label: 'Profil',
+      icon: (a: boolean) => avatarUrl ? (
+        <div className={cn('w-6 h-6 rounded-full overflow-hidden border-2', a ? 'border-primary-700' : 'border-gray-300')}>
+          <img src={avatarUrl} alt="profil" className="w-full h-full object-cover" />
+        </div>
+      ) : (
         <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
     },

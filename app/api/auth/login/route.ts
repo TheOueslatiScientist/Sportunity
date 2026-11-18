@@ -43,34 +43,52 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Real mode: Supabase Auth + Prisma ─────────────────────────────────────
-    const { createBrowserClient } = await import('@/lib/supabase')
-    const { prisma } = await import('@/lib/prisma')
+    // ── Real mode: Supabase Auth ───────────────────────────────────────────────
+    const { createClient } = await import('@supabase/supabase-js')
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
-    const supabase = createBrowserClient()
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    // If email not confirmed, auto-confirm via admin before signing in
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+    const existing = users.find((u: any) => u.email === email)
+    if (existing && !existing.email_confirmed_at) {
+      await supabaseAdmin.auth.admin.updateUserById(existing.id, { email_confirm: true })
+    }
+
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { data, error } = await authClient.auth.signInWithPassword({ email, password })
 
     if (error || !data.session)
       return NextResponse.json({ error: 'Email ou mot de passe incorrect.' }, { status: 401 })
 
     // Get or create profile in DB
-    let profile = await prisma.profile.findUnique({
-      where: { userId: data.user.id },
-      include: { coach: true },
-    })
+    let { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('userId', data.user.id)
+      .single()
 
     if (!profile) {
-      profile = await prisma.profile.create({
-        data: {
+      const name = data.user.user_metadata?.name ?? email.split('@')[0]
+      const { data: newProfile } = await supabaseAdmin
+        .from('profiles')
+        .insert({
           userId: data.user.id,
           email: data.user.email,
-          name: data.user.user_metadata?.name ?? email.split('@')[0],
+          name,
+          avatarUrl: `https://api.dicebear.com/8.x/avataaars/svg?seed=${name}`,
           isCoach: false,
           role: 'USER',
-        },
-        include: { coach: true },
-      })
+        })
+        .select()
+        .single()
+      profile = newProfile
     }
+
+    if (!profile) return NextResponse.json({ error: 'Profil introuvable.' }, { status: 500 })
 
     return NextResponse.json({
       token: data.session.access_token,
@@ -80,7 +98,7 @@ export async function POST(req: NextRequest) {
         name: profile.name,
         city: profile.city,
         is_coach: profile.isCoach,
-        role: profile.role.toLowerCase(),
+        role: (profile.role ?? 'USER').toLowerCase(),
         profile: serializeProfile(profile),
       },
     })

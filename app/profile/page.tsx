@@ -12,6 +12,69 @@ import Link from 'next/link'
 import Cookies from 'js-cookie'
 import { getStoredUser, getAuthToken } from '@/lib/client-utils'
 
+// ─── Discover section ─────────────────────────────────────────────────────────
+function DiscoverSection() {
+  const [users, setUsers] = useState<ProfileType[]>([])
+  const [sent, setSent] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    const token = getAuthToken()
+    if (!token) return
+    fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setUsers((d.data ?? []).slice(0, 8)))
+      .catch(() => {})
+  }, [])
+
+  async function sendRequest(userId: number) {
+    const token = getAuthToken()
+    if (!token) return
+    const res = await fetch('/api/friends', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ addressee_id: userId }),
+    })
+    if (res.ok || res.status === 409) setSent((prev) => new Set([...prev, userId]))
+  }
+
+  if (!users.length) return null
+
+  return (
+    <div className="px-4 mt-4">
+      <h3 className="font-bold text-gray-900 mb-3">Trouver des sportifs</h3>
+      <div className="flex flex-col gap-2">
+        {users.map((u) => (
+          <div key={u.id} className="bg-white rounded-2xl border border-gray-100 p-3 flex items-center gap-3 shadow-sm">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+              <img
+                src={u.avatar_url ?? `https://api.dicebear.com/8.x/avataaars/svg?seed=${u.name}`}
+                alt={u.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <a href={`/users/${u.user_id}`} className="text-sm font-bold text-gray-900 hover:text-primary-700 truncate block">{u.name}</a>
+              <p className="text-xs text-gray-400 truncate">
+                {u.city ?? ''}{u.city && u.sports?.length ? ' · ' : ''}{u.sports?.map((s: any) => s.icon).join(' ')}
+              </p>
+            </div>
+            {sent.has(u.id) ? (
+              <span className="text-xs text-primary-600 font-semibold">Envoyé ✓</span>
+            ) : (
+              <button
+                onClick={() => sendRequest(u.id)}
+                className="px-3 py-1.5 bg-primary-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-transform"
+              >
+                + Ajouter
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Friends section ──────────────────────────────────────────────────────────
 function FriendsSection() {
   const [accepted, setAccepted] = useState<(Friendship & { friend?: ProfileType })[]>([])
@@ -324,6 +387,9 @@ export default function ProfilePage() {
 
         {/* Stats + Friends */}
         <FriendsSection />
+
+        {/* Discover other users */}
+        <DiscoverSection />
 
         {/* Become coach CTA */}
         {!profile.is_coach && (

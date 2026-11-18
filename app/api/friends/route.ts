@@ -20,29 +20,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: { accepted, pending_received, pending_sent } })
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const userId = auth.userId as number
 
-  const friendships = await prisma.friendship.findMany({
-    where: { OR: [{ requesterId: userId }, { addresseeId: userId }] },
-    include: { requester: true, addressee: true },
-    orderBy: { createdAt: 'desc' },
-  })
+  const { data: rows } = await supabaseAdmin
+    .from('friendships')
+    .select('id, status, requesterId, addresseeId')
+    .or(`requesterId.eq.${userId},addresseeId.eq.${userId}`)
+    .order('createdAt', { ascending: false })
 
-  const accepted = friendships
-    .filter((f) => f.status === 'ACCEPTED')
-    .map((f) => ({
-      id: f.id, status: f.status.toLowerCase(),
-      friend: f.requesterId === userId ? serializeProfile(f.addressee) : serializeProfile(f.requester),
-    }))
+  if (!rows?.length) return NextResponse.json({ data: { accepted: [], pending_received: [], pending_sent: [] } })
 
-  const pending_received = friendships
-    .filter((f) => f.status === 'PENDING' && f.addresseeId === userId)
-    .map((f) => ({ id: f.id, status: f.status.toLowerCase(), friend: serializeProfile(f.requester) }))
+  // Collect all peer IDs to fetch profiles in one query
+  const peerIds = [...new Set(rows.map((f: any) => f.requesterId === userId ? f.addresseeId : f.requesterId))]
+  const { data: profileRows } = await supabaseAdmin
+    .from('profiles')
+    .select('id, name, avatarUrl, city, isCoach')
+    .in('id', peerIds)
+  const profileMap = Object.fromEntries((profileRows ?? []).map((p: any) => [p.id, p]))
 
-  const pending_sent = friendships
-    .filter((f) => f.status === 'PENDING' && f.requesterId === userId)
-    .map((f) => ({ id: f.id, status: f.status.toLowerCase(), friend: serializeProfile(f.addressee) }))
+  const accepted = rows
+    .filter((f: any) => f.status === 'ACCEPTED')
+    .map((f: any) => {
+      const peerId = f.requesterId === userId ? f.addresseeId : f.requesterId
+      return { id: f.id, status: 'accepted', requester_id: f.requesterId, addressee_id: f.addresseeId, friend: serializeProfile(profileMap[peerId]) }
+    })
+  const pending_received = rows
+    .filter((f: any) => f.status === 'PENDING' && f.addresseeId === userId)
+    .map((f: any) => ({ id: f.id, status: 'pending', requester_id: f.requesterId, addressee_id: f.addresseeId, friend: serializeProfile(profileMap[f.requesterId]) }))
+  const pending_sent = rows
+    .filter((f: any) => f.status === 'PENDING' && f.requesterId === userId)
+    .map((f: any) => ({ id: f.id, status: 'pending', requester_id: f.requesterId, addressee_id: f.addresseeId, friend: serializeProfile(profileMap[f.addresseeId]) }))
 
   return NextResponse.json({ data: { accepted, pending_received, pending_sent } })
 }
@@ -71,17 +79,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: friendship }, { status: 201 })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  try {
-    const friendship = await prisma.friendship.create({
-      data: { requesterId: auth.userId as number, addresseeId: addressee_id, status: 'PENDING' },
-    })
-    return NextResponse.json({ data: friendship }, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Une demande existe déjà.' }, { status: 409 })
-  }
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: friendship, error } = await supabaseAdmin
+    .from('friendships')
+    .insert({ requesterId: auth.userId as number, addresseeId: addressee_id, status: 'PENDING' })
+    .select()
+    .single()
+  if (error) return NextResponse.json({ error: 'Une demande existe déjà.' }, { status: 409 })
+  return NextResponse.json({ data: { ...friendship, status: 'pending' } }, { status: 201 })
 }
 
 function serializeProfile(p: any) {
+  if (!p) return null
   return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city, is_coach: p.isCoach }
 }

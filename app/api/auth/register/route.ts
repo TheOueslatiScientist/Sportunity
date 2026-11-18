@@ -35,35 +35,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ token, user: { id: newUser.id, email, name } }, { status: 201 })
     }
 
-    // ── Real mode: Supabase Auth + Prisma ─────────────────────────────────────
-    const { createBrowserClient } = await import('@/lib/supabase')
-    const { prisma } = await import('@/lib/prisma')
+    // ── Real mode: Supabase Auth (admin, skip email confirmation) ─────────────
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
-    const supabase = createBrowserClient()
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
+    // Try to create user; if already exists but unconfirmed, confirm & update password
+    let authUserId: string
+    const { data: adminData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email, password, email_confirm: true, user_metadata: { name },
     })
 
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    if (!data.user)
-      return NextResponse.json({ error: 'Inscription impossible.' }, { status: 400 })
+    if (createError) {
+      // Check if user already exists in auth
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+      const existing = users.find((u: any) => u.email === email)
+      if (!existing) {
+        return NextResponse.json({ error: createError.message ?? 'Inscription impossible.' }, { status: 400 })
+      }
+      // Auto-confirm and update password so they can log in
+      await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+        password, email_confirm: true, user_metadata: { name },
+      })
+      authUserId = existing.id
+    } else {
+      if (!adminData.user) return NextResponse.json({ error: 'Inscription impossible.' }, { status: 400 })
+      authUserId = adminData.user.id
+    }
 
-    // Create profile in DB
-    const profile = await prisma.profile.create({
-      data: {
-        userId: data.user.id,
-        email,
-        name,
-        avatarUrl: `https://api.dicebear.com/8.x/avataaars/svg?seed=${name}`,
-        isCoach: false,
-        role: 'USER',
-      },
-    })
+    // Get or create profile (upsert in case it already exists)
+    let { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select()
+      .eq('userId', authUserId)
+      .single()
 
-    const token = data.session?.access_token
+    if (!profile) {
+      const { data: newProfile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          userId: authUserId,
+          email,
+          name,
+          avatarUrl: `https://api.dicebear.com/8.x/avataaars/svg?seed=${name}`,
+          isCoach: false,
+          role: 'USER',
+        })
+        .select()
+        .single()
+      if (profileError || !newProfile)
+        return NextResponse.json({ error: 'Erreur création profil.' }, { status: 500 })
+      profile = newProfile
+    }
+
+    // Sign in to get a valid session token
+    const { createClient } = await import('@supabase/supabase-js')
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { data: signInData } = await authClient.auth.signInWithPassword({ email, password })
+    const token = signInData.session?.access_token
+
     return NextResponse.json(
       { token, user: { id: profile.id, email, name, profile } },
       { status: 201 }

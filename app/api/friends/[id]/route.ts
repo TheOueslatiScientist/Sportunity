@@ -18,13 +18,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ data: f })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  const updated = await prisma.friendship.updateMany({
-    where: { id: friendshipId, addresseeId: auth.userId as number },
-    data: { status: action === 'accept' ? 'ACCEPTED' : 'REJECTED' },
-  })
-  if (updated.count === 0) return NextResponse.json({ error: 'Demande introuvable.' }, { status: 404 })
-  return NextResponse.json({ data: { id: friendshipId, status: action === 'accept' ? 'accepted' : 'rejected' } })
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const newStatus = action === 'accept' ? 'ACCEPTED' : 'REJECTED'
+  const { data, error } = await supabaseAdmin
+    .from('friendships')
+    .update({ status: newStatus })
+    .eq('id', friendshipId)
+    .eq('addresseeId', auth.userId as number)
+    .select()
+  if (error || !data?.length) return NextResponse.json({ error: 'Demande introuvable.' }, { status: 404 })
+  return NextResponse.json({ data: { id: friendshipId, status: newStatus.toLowerCase() } })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,10 +46,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ message: 'Amitié supprimée.' })
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const userId = auth.userId as number
-  await prisma.friendship.deleteMany({
-    where: { id: friendshipId, OR: [{ requesterId: userId }, { addresseeId: userId }] },
-  })
+  await supabaseAdmin
+    .from('friendships')
+    .delete()
+    .eq('id', friendshipId)
+    .or(`requesterId.eq.${userId},addresseeId.eq.${userId}`)
   return NextResponse.json({ message: 'Amitié supprimée.' })
 }
