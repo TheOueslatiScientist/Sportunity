@@ -10,42 +10,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const matchId = parseInt(id)
 
-  // ── Mock mode ────────────────────────────────────────────────────────────────
   if (useMockData) {
     const match = MATCHES.find((m) => m.id === matchId)
     if (!match) return NextResponse.json({ error: 'Match introuvable.' }, { status: 404 })
-
     const currentParticipants = MATCH_PARTICIPANTS.filter((mp) => mp.match_id === matchId)
     if (currentParticipants.some((mp) => mp.user_id === auth.userId))
       return NextResponse.json({ error: 'Vous participez déjà à ce match.' }, { status: 409 })
     if (currentParticipants.length >= match.max_players)
       return NextResponse.json({ error: 'Le match est complet.' }, { status: 400 })
-
     MATCH_PARTICIPANTS.push({ match_id: matchId, user_id: auth.userId })
     const newCount = MATCH_PARTICIPANTS.filter((mp) => mp.match_id === matchId).length
     if (newCount >= match.max_players) match.status = 'full'
-
     return NextResponse.json({ data: { players_count: newCount, status: match.status } })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
-
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: { participants: true },
-  })
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: match } = await supabaseAdmin.from('matches').select('id,maxPlayers,status').eq('id', matchId).single()
   if (!match) return NextResponse.json({ error: 'Match introuvable.' }, { status: 404 })
-  if (match.participants.some((p) => p.profileId === auth.userId))
-    return NextResponse.json({ error: 'Vous participez déjà à ce match.' }, { status: 409 })
-  if (match.participants.length >= match.maxPlayers)
-    return NextResponse.json({ error: 'Le match est complet.' }, { status: 400 })
 
-  await prisma.matchParticipant.create({ data: { matchId, profileId: auth.userId } })
-  const newCount = match.participants.length + 1
+  const { data: existing } = await supabaseAdmin.from('match_participants').select('matchId').eq('matchId', matchId).eq('profileId', auth.userId as number).maybeSingle()
+  if (existing) return NextResponse.json({ error: 'Vous participez déjà à ce match.' }, { status: 409 })
+
+  const { count } = await supabaseAdmin.from('match_participants').select('*', { count: 'exact', head: true }).eq('matchId', matchId)
+  if ((count ?? 0) >= match.maxPlayers) return NextResponse.json({ error: 'Le match est complet.' }, { status: 400 })
+
+  await supabaseAdmin.from('match_participants').insert({ matchId, profileId: auth.userId as number })
+  const newCount = (count ?? 0) + 1
   const newStatus = newCount >= match.maxPlayers ? 'FULL' : 'OPEN'
-  if (newStatus !== match.status)
-    await prisma.match.update({ where: { id: matchId }, data: { status: newStatus as any } })
+  if (newStatus !== match.status) await supabaseAdmin.from('matches').update({ status: newStatus }).eq('id', matchId)
 
   return NextResponse.json({ data: { players_count: newCount, status: newStatus.toLowerCase() } })
 }

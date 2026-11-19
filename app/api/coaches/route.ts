@@ -12,6 +12,10 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+function serializeProfile(p: any) {
+  return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city, bio: p.bio, level: p.level?.toLowerCase() }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const sport     = searchParams.get('sport')
@@ -22,7 +26,6 @@ export async function GET(req: NextRequest) {
   const userLng   = searchParams.get('lng') ? parseFloat(searchParams.get('lng')!) : null
   const maxDist   = searchParams.get('maxDist') ? parseFloat(searchParams.get('maxDist')!) : null
 
-  // ── Mock mode ────────────────────────────────────────────────────────────────
   if (useMockData) {
     let data = [...COACHES]
     if (sport && sport !== 'all') data = data.filter((c) => c.sport?.name.toLowerCase() === sport.toLowerCase())
@@ -39,37 +42,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
   try {
-    const { prisma } = await import('@/lib/prisma')
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    let query = supabaseAdmin
+      .from('coaches')
+      .select('id,profileId,sportId,hourlyRate,description,experienceYears,rating,reviewsCount,certifications,specialties,city,lat,lng,languages,availabilityText,isAvailableNow,isCertified,isPopular,clientsCount,sessionsCount')
+      .order('rating', { ascending: false })
 
-    const where: any = {}
-    if (sport && sport !== 'all') where.sport = { name: { equals: sport, mode: 'insensitive' } }
-    if (maxPrice) where.hourlyRate = { lte: parseFloat(maxPrice) }
-    if (available === 'true') where.isAvailableNow = true
-    if (certified === 'true') where.isCertified = true
+    if (maxPrice) query = query.lte('hourlyRate', parseFloat(maxPrice))
+    if (available === 'true') query = query.eq('isAvailableNow', true)
+    if (certified === 'true') query = query.eq('isCertified', true)
 
-    const coaches = await prisma.coach.findMany({
-      where,
-      include: { profile: true, sport: true },
-      orderBy: { rating: 'desc' },
-    })
+    const { data: rows } = await query
+    if (!rows?.length) return NextResponse.json({ data: [] })
 
-    let data = coaches.map((c) => {
+    const profileIds = rows.map((c: any) => c.profileId)
+    const { data: profiles } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,city,bio,level').in('id', profileIds)
+    const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]))
+
+    let data = rows.map((c: any) => {
       const distance = userLat && userLng && c.lat && c.lng ? haversine(userLat, userLng, c.lat, c.lng) : undefined
+      const p = profileMap[c.profileId]
       return {
-        id: c.id, user_id: c.profileId, profile: serializeProfile(c.profile),
-        sport_id: c.sportId, sport: c.sport, hourly_rate: c.hourlyRate,
-        description: c.description, experience_years: c.experienceYears,
-        rating: c.rating, reviews_count: c.reviewsCount,
-        certifications: c.certifications, specialties: c.specialties,
-        city: c.city, lat: c.lat, lng: c.lng, languages: c.languages,
+        id: c.id, user_id: c.profileId, profile: p ? serializeProfile(p) : null,
+        sport_id: c.sportId, hourly_rate: c.hourlyRate, description: c.description,
+        experience_years: c.experienceYears, rating: c.rating, reviews_count: c.reviewsCount,
+        certifications: c.certifications ?? [], specialties: c.specialties ?? [],
+        city: c.city ?? p?.city, lat: c.lat, lng: c.lng, languages: c.languages ?? ['Français'],
         availability_text: c.availabilityText, is_available_now: c.isAvailableNow,
         is_certified: c.isCertified, is_popular: c.isPopular,
         clients_count: c.clientsCount, sessions_count: c.sessionsCount, distance,
       }
     })
 
+    if (sport && sport !== 'all') data = data.filter((c) => c.sport_id === parseInt(sport))
     if (userLat && userLng) {
       if (maxDist) data = data.filter((c) => !c.distance || c.distance <= maxDist)
       data.sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
@@ -109,30 +115,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: newCoach }, { status: 201 })
     }
 
-    const { prisma } = await import('@/lib/prisma')
-    const existing = await prisma.coach.findUnique({ where: { profileId: auth.userId } })
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: existing } = await supabaseAdmin.from('coaches').select('id').eq('profileId', auth.userId as number).single()
     if (existing) return NextResponse.json({ error: 'Vous êtes déjà coach.' }, { status: 409 })
 
-    const [coach] = await prisma.$transaction([
-      prisma.coach.create({
-        data: {
-          profileId: auth.userId, sportId: sport_id, hourlyRate: parseFloat(hourly_rate),
-          description, experienceYears: parseInt(experience_years),
-          certifications: certifications ?? [], specialties: specialties ?? [],
-          city, lat, lng, isAvailableNow: is_available_now ?? true,
-          isCertified: (certifications ?? []).length > 0, availabilityText: availability_text,
-        },
-        include: { profile: true, sport: true },
-      }),
-      prisma.profile.update({ where: { id: auth.userId }, data: { isCoach: true, role: 'COACH' } }),
-    ])
+    const { data: coach, error } = await supabaseAdmin
+      .from('coaches')
+      .insert({
+        profileId: auth.userId as number, sportId: sport_id, hourlyRate: parseFloat(hourly_rate),
+        description, experienceYears: parseInt(experience_years),
+        certifications: certifications ?? [], specialties: specialties ?? [],
+        city, lat, lng, isAvailableNow: is_available_now ?? true,
+        isCertified: (certifications ?? []).length > 0, availabilityText: availability_text,
+      })
+      .select()
+      .single()
+    if (error) throw error
+
+    await supabaseAdmin.from('profiles').update({ isCoach: true, role: 'COACH' }).eq('id', auth.userId as number)
     return NextResponse.json({ data: coach }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/coaches]', err)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
   }
-}
-
-function serializeProfile(p: any) {
-  return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city, bio: p.bio, level: p.level?.toLowerCase() }
 }
