@@ -25,20 +25,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const userId = auth.userId as number
 
-  const existing = await prisma.postLike.findUnique({
-    where: { postId_profileId: { postId, profileId: userId } },
-  })
+  const { data: existing } = await supabaseAdmin
+    .from('post_likes')
+    .select('postId')
+    .eq('postId', postId)
+    .eq('profileId', userId)
+    .single()
 
   if (existing) {
-    await prisma.postLike.delete({ where: { postId_profileId: { postId, profileId: userId } } })
-    const post = await prisma.post.update({ where: { id: postId }, data: { likes: { decrement: 1 } } })
-    return NextResponse.json({ data: { liked: false, likes: Math.max(0, post.likes) } })
+    await supabaseAdmin.from('post_likes').delete().eq('postId', postId).eq('profileId', userId)
+    const { data: post } = await supabaseAdmin.from('posts').update({ likes: supabaseAdmin.rpc ? undefined : undefined }).select('likes').eq('id', postId).single()
+    // Decrement manually
+    const { data: p } = await supabaseAdmin.from('posts').select('likes').eq('id', postId).single()
+    const newLikes = Math.max(0, (p?.likes ?? 1) - 1)
+    await supabaseAdmin.from('posts').update({ likes: newLikes }).eq('id', postId)
+    return NextResponse.json({ data: { liked: false, likes: newLikes } })
   } else {
-    await prisma.postLike.create({ data: { postId, profileId: userId } })
-    const post = await prisma.post.update({ where: { id: postId }, data: { likes: { increment: 1 } } })
-    return NextResponse.json({ data: { liked: true, likes: post.likes } })
+    await supabaseAdmin.from('post_likes').insert({ postId, profileId: userId })
+    const { data: p } = await supabaseAdmin.from('posts').select('likes').eq('id', postId).single()
+    const newLikes = (p?.likes ?? 0) + 1
+    await supabaseAdmin.from('posts').update({ likes: newLikes }).eq('id', postId)
+    return NextResponse.json({ data: { liked: true, likes: newLikes } })
   }
 }

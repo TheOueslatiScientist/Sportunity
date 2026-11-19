@@ -16,24 +16,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  const posts = await prisma.post.findMany({
-    include: {
-      author: true,
-      sport: true,
-      _count: { select: { comments: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: offset,
-    take: limit,
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: rows } = await supabaseAdmin
+    .from('posts')
+    .select('id, content, imageUrl, type, likes, createdAt, sportId, authorId')
+    .order('createdAt', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (!rows?.length) return NextResponse.json({ data: [] })
+
+  const authorIds = [...new Set(rows.map((p: any) => p.authorId))]
+  const { data: authors } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,isCoach').in('id', authorIds)
+  const authorMap = Object.fromEntries((authors ?? []).map((a: any) => [a.id, a]))
+
+  const { data: commentCounts } = await supabaseAdmin
+    .from('comments')
+    .select('postId')
+    .in('postId', rows.map((p: any) => p.id))
+
+  const countMap: Record<number, number> = {}
+  for (const c of commentCounts ?? []) {
+    countMap[(c as any).postId] = (countMap[(c as any).postId] ?? 0) + 1
+  }
+
+  const data = rows.map((p: any) => {
+    const a = authorMap[p.authorId]
+    return {
+      id: p.id, content: p.content, image_url: p.imageUrl, type: p.type, likes: p.likes,
+      created_at: p.createdAt, sport_id: p.sportId,
+      author: a ? { id: a.id, name: a.name, avatar_url: a.avatarUrl, is_coach: a.isCoach } : null,
+      comments_count: countMap[p.id] ?? 0,
+    }
   })
 
-  const data = posts.map((p) => ({
-    id: p.id, content: p.content, image_url: p.imageUrl, type: p.type, likes: p.likes,
-    created_at: p.createdAt, sport_id: p.sportId, sport: p.sport,
-    author: { id: p.author.id, name: p.author.name, avatar_url: p.author.avatarUrl, is_coach: p.author.isCoach },
-    comments_count: p._count.comments,
-  }))
   return NextResponse.json({ data })
 }
 
@@ -60,18 +75,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: newPost }, { status: 201 })
     }
 
-    const { prisma } = await import('@/lib/prisma')
-    const post = await prisma.post.create({
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: post, error } = await supabaseAdmin
+      .from('posts')
+      .insert({ authorId: auth.userId as number, content: content?.trim() ?? '', imageUrl: image_url ?? null, sportId: sport_id ?? null, type })
+      .select()
+      .single()
+    if (error) throw error
+
+    const { data: author } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,isCoach').eq('id', auth.userId as number).single()
+    return NextResponse.json({
       data: {
-        authorId: auth.userId as number,
-        content: content?.trim() ?? '',
-        imageUrl: image_url ?? null,
-        sportId: sport_id ?? null,
-        type,
+        id: post.id, content: post.content, image_url: post.imageUrl, type: post.type,
+        likes: 0, created_at: post.createdAt, sport_id: post.sportId, comments_count: 0,
+        author: author ? { id: author.id, name: author.name, avatar_url: author.avatarUrl, is_coach: author.isCoach } : null,
       },
-      include: { author: true, sport: true },
-    })
-    return NextResponse.json({ data: post }, { status: 201 })
+    }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/posts]', err)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
