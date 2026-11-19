@@ -33,20 +33,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select('postId')
     .eq('postId', postId)
     .eq('profileId', userId)
-    .single()
+    .maybeSingle()
+
+  const { data: p } = await supabaseAdmin.from('posts').select('likes').eq('id', postId).single()
+  const currentLikes = p?.likes ?? 0
 
   if (existing) {
     await supabaseAdmin.from('post_likes').delete().eq('postId', postId).eq('profileId', userId)
-    const { data: post } = await supabaseAdmin.from('posts').update({ likes: supabaseAdmin.rpc ? undefined : undefined }).select('likes').eq('id', postId).single()
-    // Decrement manually
-    const { data: p } = await supabaseAdmin.from('posts').select('likes').eq('id', postId).single()
-    const newLikes = Math.max(0, (p?.likes ?? 1) - 1)
+    const newLikes = Math.max(0, currentLikes - 1)
     await supabaseAdmin.from('posts').update({ likes: newLikes }).eq('id', postId)
     return NextResponse.json({ data: { liked: false, likes: newLikes } })
   } else {
     await supabaseAdmin.from('post_likes').insert({ postId, profileId: userId })
-    const { data: p } = await supabaseAdmin.from('posts').select('likes').eq('id', postId).single()
-    const newLikes = (p?.likes ?? 0) + 1
+    const newLikes = currentLikes + 1
     await supabaseAdmin.from('posts').update({ likes: newLikes }).eq('id', postId)
     return NextResponse.json({ data: { liked: true, likes: newLikes } })
   }
