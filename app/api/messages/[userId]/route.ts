@@ -19,24 +19,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
     return NextResponse.json({ data: conversation })
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const myId = auth.userId as number
 
-  const messages = await prisma.message.findMany({
-    where: {
-      OR: [
-        { senderId: myId, receiverId: otherId },
-        { senderId: otherId, receiverId: myId },
-      ],
-    },
-    include: { sender: true },
-    orderBy: { createdAt: 'asc' },
-  })
+  const { data: messages } = await supabaseAdmin
+    .from('messages')
+    .select('*')
+    .or(`and(senderId.eq.${myId},receiverId.eq.${otherId}),and(senderId.eq.${otherId},receiverId.eq.${myId})`)
+    .order('createdAt', { ascending: true })
 
-  await prisma.message.updateMany({
-    where: { senderId: otherId, receiverId: myId, read: false },
-    data: { read: true },
-  })
+  // Mark received messages as read
+  await supabaseAdmin
+    .from('messages')
+    .update({ read: true })
+    .eq('senderId', otherId)
+    .eq('receiverId', myId)
+    .eq('read', false)
 
-  return NextResponse.json({ data: messages })
+  const data = (messages ?? []).map((m: any) => ({
+    id: m.id, sender_id: m.senderId, receiver_id: m.receiverId,
+    content: m.content, read: m.read, created_at: m.createdAt,
+  }))
+
+  return NextResponse.json({ data })
 }

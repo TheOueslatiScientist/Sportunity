@@ -32,31 +32,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: conversations })
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const myId = auth.userId as number
 
-  const messages = await prisma.message.findMany({
-    where: { OR: [{ senderId: myId }, { receiverId: myId }] },
-    include: { sender: true, receiver: true },
-    orderBy: { createdAt: 'desc' },
-  })
+  const { data: messages } = await supabaseAdmin
+    .from('messages')
+    .select('*')
+    .or(`senderId.eq.${myId},receiverId.eq.${myId}`)
+    .order('createdAt', { ascending: false })
+
+  if (!messages?.length) return NextResponse.json({ data: [] })
 
   // Group by partner, keep latest message per partner
-  const partnersMap = new Map<number, { last: typeof messages[0]; unread: number }>()
+  const partnersMap = new Map<number, { last: any; unread: number }>()
   for (const msg of messages) {
     const partnerId = msg.senderId === myId ? msg.receiverId : msg.senderId
     if (!partnersMap.has(partnerId)) {
-      const unread = messages.filter(
-        (m) => m.senderId === partnerId && m.receiverId === myId && !m.read
-      ).length
+      const unread = messages.filter((m: any) => m.senderId === partnerId && m.receiverId === myId && !m.read).length
       partnersMap.set(partnerId, { last: msg, unread })
     }
   }
 
+  const partnerIds = [...partnersMap.keys()]
+  const { data: profiles } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,isCoach').in('id', partnerIds)
+  const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]))
+
   const conversations = [...partnersMap.entries()].map(([partnerId, { last, unread }]) => {
-    const partner = last.senderId === myId ? last.receiver : last.sender
+    const p = profileMap[partnerId]
     return {
-      user: { id: partner.id, user_id: partner.id, name: partner.name, avatar_url: partner.avatarUrl, is_coach: partner.isCoach },
+      user: { id: partnerId, user_id: partnerId, name: p?.name, avatar_url: p?.avatarUrl, is_coach: p?.isCoach },
       last_message: { id: last.id, content: last.content, created_at: last.createdAt, sender_id: last.senderId },
       unread_count: unread,
     }

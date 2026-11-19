@@ -22,16 +22,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: msg }, { status: 201 })
     }
 
-    const { prisma } = await import('@/lib/prisma')
-    const msg = await prisma.message.create({
-      data: {
-        senderId: auth.userId as number,
-        receiverId: receiver_id,
-        content: content.trim(),
-      },
-      include: { sender: true },
-    })
-    return NextResponse.json({ data: msg }, { status: 201 })
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: msg, error } = await supabaseAdmin
+      .from('messages')
+      .insert({ senderId: auth.userId as number, receiverId: receiver_id, content: content.trim() })
+      .select()
+      .single()
+    if (error) throw error
+    return NextResponse.json({ data: { ...msg, sender_id: msg.senderId, receiver_id: msg.receiverId, created_at: msg.createdAt } }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/messages]', err)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
