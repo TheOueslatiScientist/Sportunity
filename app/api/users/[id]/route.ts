@@ -16,19 +16,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ data: profile })
   }
 
-  const { prisma } = await import('@/lib/prisma')
-  const profile = await prisma.profile.findUnique({
-    where: { id },
-    include: { sports: { include: { sport: true } } },
-  })
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', id).single()
   if (!profile) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 })
 
   return NextResponse.json({
     data: {
       id: profile.id, user_id: profile.id, name: profile.name, avatar_url: profile.avatarUrl,
       bio: profile.bio, city: profile.city, level: profile.level?.toLowerCase(),
-      is_coach: profile.isCoach, email: profile.email,
-      sports: profile.sports.map((ps) => ps.sport),
+      is_coach: profile.isCoach, email: profile.email, sports: [],
     },
   })
 }
@@ -50,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ data: PROFILES[idx] })
   }
 
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
   const data: Record<string, unknown> = {}
   if (body.name !== undefined) data.name = body.name
   if (body.bio !== undefined) data.bio = body.bio
@@ -62,6 +58,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (Object.keys(data).length === 0)
     return NextResponse.json({ error: 'Aucun champ à mettre à jour.' }, { status: 400 })
 
-  const updated = await prisma.profile.update({ where: { id }, data })
+  const { data: updated } = await supabaseAdmin.from('profiles').update(data).eq('id', id).select().single()
   return NextResponse.json({ data: updated })
 }

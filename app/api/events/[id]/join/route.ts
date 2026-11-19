@@ -25,9 +25,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ data: event })
   }
 
-  // SportEvent has no participants table in schema yet — return success
-  const { prisma } = await import('@/lib/prisma')
-  const event = await prisma.sportEvent.findUnique({ where: { id: eventId } })
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: event } = await supabaseAdmin.from('sport_events').select('id').eq('id', eventId).single()
   if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
-  return NextResponse.json({ message: 'Vous avez rejoint l\'événement !' })
+  return NextResponse.json({ message: "Vous avez rejoint l'événement !" })
 }
