@@ -12,9 +12,18 @@ export function getStoredUser(): { id: number; email: string; name: string; city
 }
 
 /**
- * Safe cookie token reader — works in browser only
+ * Safe token reader — cookie first, localStorage fallback
  */
 export function getAuthToken(): string | null {
   if (typeof document === 'undefined') return null
-  return document.cookie.match(/token=([^;]+)/)?.[1] ?? null
+  const fromCookie = document.cookie.match(/(?:^|;\s*)token=([^;]+)/)?.[1]
+  if (fromCookie) return decodeURIComponent(fromCookie)
+  try { return localStorage.getItem('auth_token') } catch { return null }
+}
+
+export function setAuthToken(token: string): void {
+  try {
+    document.cookie = `token=${encodeURIComponent(token)};path=/;max-age=604800;SameSite=Lax`
+    localStorage.setItem('auth_token', token)
+  } catch { /* ignore */ }
 }

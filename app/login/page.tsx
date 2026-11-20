@@ -2,7 +2,7 @@
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Cookies from 'js-cookie'
+import { setAuthToken } from '@/lib/client-utils'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,7 +23,7 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
-      Cookies.set('token', data.token, { expires: 7 })
+      setAuthToken(data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       router.push('/feed')
     } catch {

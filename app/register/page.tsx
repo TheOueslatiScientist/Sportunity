@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-import Cookies from 'js-cookie'
+import { setAuthToken } from '@/lib/client-utils'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -26,7 +26,7 @@ export default function RegisterPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
-      Cookies.set('token', data.token, { expires: 7 })
+      setAuthToken(data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       router.push('/feed')
     } catch {
