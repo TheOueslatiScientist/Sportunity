@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
   // ── Real mode: Supabase ───────────────────────────────────────────────────
   try {
     const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const auth = await getUserFromRequest(req)
+    const currentUserId = auth?.userId as number | undefined
 
     let query = supabaseAdmin
       .from('sport_events')
@@ -33,12 +35,31 @@ export async function GET(req: NextRequest) {
     const { data: rows, error } = await query
     if (error) throw error
 
-    const data = (rows ?? []).map((e: any) => ({
+    if (!rows || rows.length === 0) return NextResponse.json({ data: [] })
+
+    const eventIds = rows.map((e: any) => e.id)
+
+    // Fetch participant counts for all events
+    const { data: participantRows } = await supabaseAdmin
+      .from('event_participants')
+      .select('eventId, profileId')
+      .in('eventId', eventIds)
+
+    const countMap: Record<number, number> = {}
+    const joinedSet = new Set<number>()
+    for (const p of participantRows ?? []) {
+      countMap[p.eventId] = (countMap[p.eventId] ?? 0) + 1
+      if (currentUserId && p.profileId === currentUserId) joinedSet.add(p.eventId)
+    }
+
+    const data = rows.map((e: any) => ({
       id: e.id, title: e.title, sport_id: e.sportId, sport: null,
       infrastructure_id: e.infrastructureId, infrastructure: null,
       creator_id: e.creatorId, date: e.date,
       max_participants: e.maxParticipants, description: e.description,
-      level: e.level, participants_count: 0, participants: [],
+      level: e.level,
+      participants_count: countMap[e.id] ?? 0,
+      participants: joinedSet.has(e.id) ? [{ user_id: currentUserId }] : [],
       created_at: e.createdAt,
     }))
 

@@ -21,7 +21,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
+
   const { data: event } = await supabaseAdmin.from('sport_events').select('id').eq('id', eventId).single()
   if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
+
+  const { error } = await supabaseAdmin
+    .from('event_participants')
+    .delete()
+    .eq('eventId', eventId)
+    .eq('profileId', auth.userId as number)
+  if (error) {
+    console.error('[DELETE leave event]', error)
+    return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
+  }
+
   return NextResponse.json({ message: "Vous avez quitté l'événement." })
 }

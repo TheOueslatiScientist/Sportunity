@@ -26,7 +26,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
-  const { data: event } = await supabaseAdmin.from('sport_events').select('id').eq('id', eventId).single()
+
+  const { data: event } = await supabaseAdmin
+    .from('sport_events')
+    .select('id, maxParticipants')
+    .eq('id', eventId)
+    .single()
   if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
+
+  const { data: existing } = await supabaseAdmin
+    .from('event_participants')
+    .select('eventId')
+    .eq('eventId', eventId)
+    .eq('profileId', auth.userId as number)
+    .maybeSingle()
+  if (existing) return NextResponse.json({ error: 'Vous participez déjà à cet événement.' }, { status: 409 })
+
+  const { count } = await supabaseAdmin
+    .from('event_participants')
+    .select('*', { count: 'exact', head: true })
+    .eq('eventId', eventId)
+  if ((count ?? 0) >= event.maxParticipants)
+    return NextResponse.json({ error: "L'événement est complet." }, { status: 409 })
+
+  const { error } = await supabaseAdmin
+    .from('event_participants')
+    .insert({ eventId, profileId: auth.userId as number })
+  if (error) {
+    console.error('[POST join event]', error)
+    return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
+  }
+
   return NextResponse.json({ message: "Vous avez rejoint l'événement !" })
 }
