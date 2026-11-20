@@ -22,10 +22,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const isParticipant = participantIds.includes(auth.userId)
     if (!isCreator && !isParticipant)
       return NextResponse.json({ error: 'Réservé aux participants.' }, { status: 403 })
-    ;(match as any).score_a = parseInt(score_a)
-    ;(match as any).score_b = parseInt(score_b)
+    const sa = parseInt(score_a), sb = parseInt(score_b)
+    ;(match as any).score_a = sa
+    ;(match as any).score_b = sb
     ;(match as any).status = 'completed'
-    return NextResponse.json({ data: { score_a: match.score_a, score_b: match.score_b } })
+    return NextResponse.json({ data: { score_a: sa, score_b: sb } })
   }
 
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
