@@ -168,6 +168,29 @@ export default function InfrastructureSheet({
             </div>
           )}
 
+          {/* Website link for private clubs */}
+          {!infrastructure.is_public && (infrastructure as any).website_url && (
+            <a
+              href={(infrastructure as any).website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 hover:bg-blue-100 transition-colors"
+            >
+              <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-blue-800">Site officiel du club</p>
+                <p className="text-xs text-blue-500 truncate">{(infrastructure as any).website_url.replace(/^https?:\/\//, '')}</p>
+              </div>
+              <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+            </a>
+          )}
+
           {/* Route info banner */}
           {routeInfo && (
             <div className="flex items-center gap-3 bg-indigo-50 rounded-2xl px-4 py-3">

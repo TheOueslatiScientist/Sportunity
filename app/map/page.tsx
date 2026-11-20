@@ -1,6 +1,6 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, FormEvent } from 'react'
 import { Infrastructure, SportEvent, Coach } from '@/types'
 import InfrastructureSheet from '@/components/cards/InfrastructureSheet'
 import BottomNav from '@/components/BottomNav'
@@ -141,6 +141,75 @@ const LAYER_FILTERS = [
   { value: 'events',  label: 'Événements' },
 ]
 
+function AddClubModal({ onClose, onAdded, userLat, userLng }: { onClose: () => void; onAdded: () => void; userLat: number; userLng: number }) {
+  const [name, setName] = useState('')
+  const [address, setAddress] = useState('')
+  const [website, setWebsite] = useState('')
+  const [type, setType] = useState('football')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const TYPES = [
+    { value: 'football', label: 'Football' }, { value: 'basketball', label: 'Basket' },
+    { value: 'tennis', label: 'Tennis' }, { value: 'swimming', label: 'Natation' },
+    { value: 'gym', label: 'Salle de sport' }, { value: 'padel', label: 'Padel' },
+    { value: 'running', label: 'Athlétisme' }, { value: 'other', label: 'Autre' },
+  ]
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || !address.trim()) { setError('Nom et adresse requis.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const token = getAuthToken()
+      const res = await fetch('/api/infrastructures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: name.trim(), address: address.trim(), lat: userLat, lng: userLng, type, website_url: website.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); return }
+      onAdded()
+      onClose()
+    } catch { setError('Erreur réseau.') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40" style={{ zIndex: 1000 }} onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl p-5 pb-8" style={{ zIndex: 1100 }}>
+        <div className="flex justify-center mb-4"><div className="w-10 h-1 bg-gray-200 rounded-full" /></div>
+        <h2 className="text-lg font-extrabold text-gray-900 mb-1">Référencer un club</h2>
+        <p className="text-xs text-gray-400 mb-4">Ajout public — pas de partenariat officiel</p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du club *"
+            className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500" />
+          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Adresse *"
+            className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500" />
+          <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Lien site officiel (optionnel)"
+            type="url" className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500" />
+          <div className="grid grid-cols-4 gap-1.5">
+            {TYPES.map((t) => (
+              <button key={t.value} type="button" onClick={() => setType(t.value)}
+                className={cn('py-1.5 rounded-xl text-[11px] font-semibold transition-all', type === t.value ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600')}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400">📍 Position utilisée : {userLat.toFixed(4)}, {userLng.toFixed(4)}</p>
+          {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+          <button type="submit" disabled={saving}
+            className="w-full py-3 rounded-2xl bg-primary-500 text-white font-bold text-sm disabled:opacity-50">
+            {saving ? 'Envoi…' : 'Référencer le club'}
+          </button>
+        </form>
+      </div>
+    </>
+  )
+}
+
 export default function MapPage() {
   const [infrastructures, setInfrastructures] = useState<Infrastructure[]>([])
   const [coaches, setCoaches] = useState<Coach[]>([])
@@ -149,6 +218,7 @@ export default function MapPage() {
   const [events, setEvents]                   = useState<SportEvent[]>([])
   const [selectedInfra, setSelectedInfra]     = useState<Infrastructure | null>(null)
   const [selectedCoach, setSelectedCoach]     = useState<Coach | null>(null)
+  const [showAddClub, setShowAddClub]         = useState(false)
   // Centré sur Lille — Métropole Européenne de Lille (zone pilote)
   const [userLat, setUserLat] = useState(50.6292)
   const [userLng, setUserLng] = useState(3.0573)
@@ -255,6 +325,11 @@ export default function MapPage() {
   function handleCloseInfra() {
     setSelectedInfra(null)
     setRouteInfo(null)
+  }
+
+  async function reloadInfras() {
+    const res = await fetch('/api/infrastructures').then((r) => r.json()).catch(() => ({ data: [] }))
+    setInfrastructures(res.data ?? [])
   }
 
   const visibleCoaches = layerFilter === 'coaches' ? filteredCoaches : []
@@ -395,6 +470,18 @@ export default function MapPage() {
           onRouteInfo={setRouteInfo}
         />
 
+        {/* Référencer un club */}
+        <button
+          onClick={() => setShowAddClub(true)}
+          style={{ zIndex: 500 }}
+          className="absolute bottom-5 right-4 h-11 px-4 bg-primary-500 rounded-2xl shadow-card flex items-center gap-2 active:scale-95 transition-transform"
+        >
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <span className="text-sm font-semibold text-white">Club privé</span>
+        </button>
+
         {/* Me localiser */}
         <button
           onClick={recenter}
@@ -481,6 +568,16 @@ export default function MapPage() {
       {/* ── Coach sheet ── */}
       {selectedCoach && (
         <CoachSheet coach={selectedCoach} onClose={() => setSelectedCoach(null)} />
+      )}
+
+      {/* ── Add club modal ── */}
+      {showAddClub && (
+        <AddClubModal
+          onClose={() => setShowAddClub(false)}
+          onAdded={reloadInfras}
+          userLat={userLat}
+          userLng={userLng}
+        />
       )}
 
       <BottomNav />

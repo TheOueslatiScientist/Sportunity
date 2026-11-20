@@ -426,8 +426,8 @@ export default function MatchDetailPage() {
               <Button fullWidth variant="secondary" loading={joining} onClick={handleLeave}>
                 Quitter le match
               </Button>
-              <Link href="/chat" className="flex-1">
-                <Button fullWidth>💬 Chat</Button>
+              <Link href={`/matches/${matchId}/chat`} className="flex-1">
+                <Button fullWidth>💬 Groupe</Button>
               </Link>
             </div>
           ) : isFull ? (
