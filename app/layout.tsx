@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Chatbot from '@/components/Chatbot'
+import PageTransition from '@/components/PageTransition'
 
 export const metadata: Metadata = {
   title: 'Sportunity',
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body className="bg-gray-50 font-sans">
-        {children}
+        <PageTransition>{children}</PageTransition>
         <Chatbot />
       </body>
     </html>
