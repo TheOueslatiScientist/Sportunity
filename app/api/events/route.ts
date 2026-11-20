@@ -52,6 +52,13 @@ export async function GET(req: NextRequest) {
       if (currentUserId && p.profileId === currentUserId) joinedSet.add(p.eventId)
     }
 
+    // Fetch current user's profile name for the avatar stack
+    let currentUserName = ''
+    if (currentUserId) {
+      const { data: prof } = await supabaseAdmin.from('profiles').select('name').eq('id', currentUserId).single()
+      currentUserName = prof?.name ?? ''
+    }
+
     const data = rows.map((e: any) => ({
       id: e.id, title: e.title, sport_id: e.sportId, sport: null,
       infrastructure_id: e.infrastructureId, infrastructure: null,
@@ -59,7 +66,7 @@ export async function GET(req: NextRequest) {
       max_participants: e.maxParticipants, description: e.description,
       level: e.level,
       participants_count: countMap[e.id] ?? 0,
-      participants: joinedSet.has(e.id) ? [{ user_id: currentUserId }] : [],
+      participants: joinedSet.has(e.id) ? [{ user_id: currentUserId, name: currentUserName }] : [],
       created_at: e.createdAt,
     }))
 

@@ -76,9 +76,9 @@ export default function EventCard({ event, onJoin, onLeave, joining, leaving, cu
                   className="w-6 h-6 rounded-full border-2 border-white bg-primary-100 flex items-center justify-center text-[10px] font-bold text-primary-600 overflow-hidden"
                 >
                   {p.avatar_url ? (
-                    <img src={p.avatar_url} alt={p.name} className="w-full h-full object-cover" />
+                    <img src={p.avatar_url} alt={p.name ?? ''} className="w-full h-full object-cover" />
                   ) : (
-                    p.name[0]
+                    p.name?.[0] ?? '?'
                   )}
                 </div>
               ))}
