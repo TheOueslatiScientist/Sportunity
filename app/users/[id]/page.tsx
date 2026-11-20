@@ -5,11 +5,13 @@ import { getAuthToken } from '@/lib/client-utils'
 import BottomNav from '@/components/BottomNav'
 import Link from 'next/link'
 
+type Post = { id: number; title?: string; content: string; image_url?: string; likes_count: number; created_at: string }
 type Profile = {
   id: number; name: string; avatar_url?: string; bio?: string
   city?: string; level?: string; is_coach?: boolean; email?: string
-  stats?: { matches: number; friends: number }
+  stats?: { matches: number; friends: number; posts: number }
   recent_matches?: { id: number; title: string; date: string; status: string; sportId?: number }[]
+  posts?: Post[]
 }
 type FriendStatus = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
@@ -190,6 +192,11 @@ export default function UserProfilePage() {
             <p className="text-xl font-extrabold text-gray-900">{profile.stats?.friends ?? 0}</p>
             <p className="text-xs text-gray-400 font-medium">Amis</p>
           </div>
+          <div className="w-px bg-gray-100" />
+          <div className="text-center">
+            <p className="text-xl font-extrabold text-gray-900">{profile.stats?.posts ?? 0}</p>
+            <p className="text-xs text-gray-400 font-medium">Posts</p>
+          </div>
         </div>
       </div>
 
@@ -220,13 +227,47 @@ export default function UserProfilePage() {
         </div>
       )}
 
-      {/* Empty state if no activity */}
-      {(profile.stats?.matches ?? 0) === 0 && (
-        <div className="mx-4 mt-6 bg-white rounded-2xl border border-gray-100 p-6 text-center">
-          <span className="text-3xl">🏃</span>
-          <p className="text-sm font-semibold text-gray-500 mt-2">Aucun match encore joué</p>
-        </div>
-      )}
+      {/* Posts */}
+      <div className="mx-4 mt-4">
+        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">Publications</h2>
+        {(profile.posts?.length ?? 0) === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <span className="text-3xl">📝</span>
+            <p className="text-sm font-semibold text-gray-500 mt-2">Aucune publication</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {profile.posts!.map((post) => (
+              <div key={post.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                {post.image_url && (
+                  <img src={post.image_url} alt="" className="w-full h-48 object-cover" />
+                )}
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                      <img src={avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{profile.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(post.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  {post.title && <p className="font-bold text-gray-900 mb-1">{post.title}</p>}
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                  <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    <span className="text-xs font-semibold text-gray-400">{post.likes_count}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <BottomNav />
     </div>

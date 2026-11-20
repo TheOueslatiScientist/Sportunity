@@ -20,8 +20,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', id).single()
   if (!profile) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 })
 
-  // Stats: matches played, friend count
-  const [{ count: matchCount }, { count: friendCount }, { data: recentMatches }] = await Promise.all([
+  // Stats + posts in parallel
+  const [{ count: matchCount }, { count: friendCount }, { data: recentMatches }, { data: posts }] = await Promise.all([
     supabaseAdmin.from('match_participants').select('*', { count: 'exact', head: true }).eq('profileId', id),
     supabaseAdmin.from('friendships').select('*', { count: 'exact', head: true })
       .or(`requesterId.eq.${id},addresseeId.eq.${id}`).eq('status', 'ACCEPTED'),
@@ -30,17 +30,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .eq('profileId', id)
       .order('matchId', { ascending: false })
       .limit(3),
+    supabaseAdmin.from('expert_posts')
+      .select('id, title, content, imageUrl, likesCount, createdAt')
+      .eq('authorId', id)
+      .order('createdAt', { ascending: false })
+      .limit(20),
   ])
 
   const matches = (recentMatches ?? []).map((r: any) => r.matches).filter(Boolean)
+  const serializedPosts = (posts ?? []).map((p: any) => ({
+    id: p.id, title: p.title, content: p.content,
+    image_url: p.imageUrl, likes_count: p.likesCount ?? 0,
+    created_at: p.createdAt,
+  }))
 
   return NextResponse.json({
     data: {
       id: profile.id, user_id: profile.id, name: profile.name, avatar_url: profile.avatarUrl,
       bio: profile.bio, city: profile.city, level: profile.level?.toLowerCase(),
       is_coach: profile.isCoach, email: profile.email, sports: [],
-      stats: { matches: matchCount ?? 0, friends: friendCount ?? 0 },
+      stats: { matches: matchCount ?? 0, friends: friendCount ?? 0, posts: serializedPosts.length },
       recent_matches: matches,
+      posts: serializedPosts,
     },
   })
 }
