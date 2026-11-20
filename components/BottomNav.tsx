@@ -9,7 +9,7 @@ export default function BottomNav() {
   const pathname = usePathname()
   const [showCreate, setShowCreate] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -20,14 +20,14 @@ export default function BottomNav() {
     }
   }, [pathname])
 
-  // Poll unread notification count every 30s
+  // Poll pending friend requests count every 30s
   useEffect(() => {
     function fetchCount() {
       const token = getAuthToken()
       if (!token) return
-      fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } })
+      fetch('/api/friends', { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.ok ? r.json() : null)
-        .then((d) => { if (d) setUnreadCount(d.unread_count ?? 0) })
+        .then((d) => { if (d) setPendingCount((d.data?.pending_received ?? []).length) })
         .catch(() => {})
     }
     fetchCount()
@@ -35,9 +35,9 @@ export default function BottomNav() {
     return () => clearInterval(interval)
   }, [])
 
-  // Reset badge when visiting notifications page
+  // Reset badge when visiting network page
   useEffect(() => {
-    if (pathname === '/notifications') setUnreadCount(0)
+    if (pathname === '/search') setPendingCount(0)
   }, [pathname])
 
   const left = [
@@ -61,11 +61,11 @@ export default function BottomNav() {
 
   const right = [
     {
-      href: '/notifications', label: 'Alertes',
-      badge: unreadCount,
+      href: '/search', label: 'Réseau',
+      badge: pendingCount,
       icon: (a: boolean) => (
         <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
     },
