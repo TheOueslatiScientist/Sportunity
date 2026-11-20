@@ -13,6 +13,8 @@ const TYPE_ICONS: Record<string, string> = {
   match_full: '🔥',
   new_message: '💬',
   match_comment: '💬',
+  event_request: '📋',
+  event_accepted: '✅',
 }
 
 function timeAgo(iso: string) {
@@ -25,9 +27,11 @@ function timeAgo(iso: string) {
 }
 
 function notifHref(notif: Notif): string | null {
-  if (!notif.related_id) return null
-  if (notif.type === 'match_joined' || notif.type === 'match_full') return `/matches/${notif.related_id}`
-  if (notif.type === 'new_message') return '/chat'
+  if (notif.type === 'new_message' && notif.related_id) return `/chat?user=${notif.related_id}`
+  if (notif.type === 'match_joined' || notif.type === 'match_full') return notif.related_id ? `/matches/${notif.related_id}` : null
+  if (notif.type === 'match_comment') return notif.related_id ? `/matches/${notif.related_id}` : null
+  if (notif.type === 'event_request') return notif.related_id ? `/events` : null
+  if (notif.type === 'event_accepted') return notif.related_id ? `/events/${notif.related_id}/chat` : null
   return null
 }
 
