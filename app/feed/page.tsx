@@ -340,7 +340,7 @@ function EventsStrip({ events }: { events: SportEvent[] }) {
         <Link href="/events" className="text-xs font-semibold text-primary-700">Voir tout →</Link>
       </div>
       <div className="flex gap-3 px-4 overflow-x-auto scrollbar-none pb-1">
-        {events.slice(0, 6).map((event) => {
+        {events.slice(0, 6).map((event: any) => {
           const spotsLeft = event.max_participants - event.participants_count
           return (
             <Link key={event.id} href="/events"
@@ -370,8 +370,12 @@ function EventsStrip({ events }: { events: SportEvent[] }) {
                     </svg>
                     {event.participants_count}/{event.max_participants}
                   </span>
-                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', spotsLeft > 0 ? 'bg-primary-50 text-primary-700' : 'bg-gray-100 text-gray-400')}>
-                    {spotsLeft > 0 ? 'Rejoindre' : 'Complet'}
+                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                    event.is_creator ? 'bg-purple-50 text-purple-700' :
+                    event.join_status === 'accepted' ? 'bg-green-50 text-green-700' :
+                    event.join_status === 'pending' ? 'bg-orange-50 text-orange-600' :
+                    spotsLeft > 0 ? 'bg-primary-50 text-primary-700' : 'bg-gray-100 text-gray-400')}>
+                    {event.is_creator ? 'Mon event' : event.join_status === 'accepted' ? '✓ Inscrit' : event.join_status === 'pending' ? '⏳ En attente' : spotsLeft > 0 ? 'Rejoindre' : 'Complet'}
                   </span>
                 </div>
               </div>
@@ -464,7 +468,7 @@ function SportFilter({ sports, active, onChange }: { sports: Sport[]; active: nu
 // ─── Page ────────────────────────────────────────────────────────────────────
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([])
-  const [events, setEvents] = useState<SportEvent[]>([])
+  const [events, setEvents] = useState<(SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean })[]>([])
   const [sports, setSports] = useState<Sport[]>([])
   const [userName, setUserName] = useState('')
   const [userAvatar, setUserAvatar] = useState<string | undefined>()
@@ -478,9 +482,11 @@ export default function FeedPage() {
       setUserName(u.name ?? '')
       setUserAvatar(`https://api.dicebear.com/8.x/avataaars/svg?seed=${u.name}`)
     }
+    const tok = getAuthToken()
+    const authHeaders: HeadersInit = tok ? { Authorization: `Bearer ${tok}` } : {}
     Promise.all([
       fetch('/api/posts').then((r) => r.json()),
-      fetch('/api/events').then((r) => r.json()),
+      fetch('/api/events', { headers: authHeaders }).then((r) => r.json()),
       fetch('/api/sports').then((r) => r.json()),
     ]).then(([postsRes, eventsRes, sportsRes]) => {
       setPosts((postsRes.data ?? []).map((p: Post) => ({ ...p, liked: false })))
