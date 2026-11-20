@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, useRef, FormEvent, DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sport } from '@/types'
 import Input from '@/components/ui/Input'
@@ -21,34 +21,40 @@ const CERTIFICATION_OPTIONS = [
   'Diplôme Fédéral', 'Nutrition sportive',
 ]
 
+type UploadedDoc = { name: string; url: string; path: string }
+
 export default function BecomeCoachPage() {
   const router = useRouter()
   const [sports, setSports] = useState<Sport[]>([])
   const [step, setStep] = useState(1)
-  const TOTAL_STEPS = 3
+  const TOTAL_STEPS = 4
 
-  // Form state
-  const [sportId, setSportId]             = useState<number | ''>('')
-  const [bio, setBio]                     = useState('')
-  const [experience, setExperience]       = useState('')
-  const [hourlyRate, setHourlyRate]       = useState('')
-  const [city, setCity]                   = useState('')
-  const [specialties, setSpecialties]     = useState<string[]>([])
+  const [sportId, setSportId]               = useState<number | ''>('')
+  const [bio, setBio]                       = useState('')
+  const [experience, setExperience]         = useState('')
+  const [hourlyRate, setHourlyRate]         = useState('')
+  const [city, setCity]                     = useState('')
+  const [specialties, setSpecialties]       = useState<string[]>([])
   const [certifications, setCertifications] = useState<string[]>([])
   const [availabilityText, setAvailabilityText] = useState('')
   const [isAvailableNow, setIsAvailableNow] = useState(true)
 
-  const [loading, setLoading]       = useState(false)
-  const [error, setError]           = useState('')
-  const [coachLat, setCoachLat]     = useState<number | null>(null)
-  const [coachLng, setCoachLng]     = useState<number | null>(null)
-  const [locating, setLocating]     = useState(false)
+  const [uploadedDocs, setUploadedDocs]     = useState<UploadedDoc[]>([])
+  const [uploading, setUploading]           = useState(false)
+  const [uploadError, setUploadError]       = useState('')
+  const [dragging, setDragging]             = useState(false)
+  const fileInputRef                        = useRef<HTMLInputElement>(null)
+
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const [coachLat, setCoachLat] = useState<number | null>(null)
+  const [coachLng, setCoachLng] = useState<number | null>(null)
+  const [locating, setLocating] = useState(false)
 
   useEffect(() => {
     fetch('/api/sports').then((r) => r.json()).then((d) => setSports(d.data ?? []))
     const user = getStoredUser()
     if (user) setCity(user.city ?? '')
-    // Try geolocation
     navigator.geolocation?.getCurrentPosition(
       (pos) => { setCoachLat(pos.coords.latitude); setCoachLng(pos.coords.longitude) },
       () => {}
@@ -70,11 +76,63 @@ export default function BecomeCoachPage() {
     setCertifications((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])
   }
 
+  async function uploadFile(file: File) {
+    setUploadError('')
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      setUploadError('Format non supporté. PDF, JPG ou PNG uniquement.')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('Fichier trop volumineux (max 10 Mo).')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const token = getAuthToken()
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/upload/coach-docs', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) { setUploadError(data.error); return }
+      setUploadedDocs((prev) => [...prev, { name: file.name, url: data.url, path: data.path }])
+    } catch {
+      setUploadError('Erreur réseau, réessayez.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    files.forEach(uploadFile)
+    e.target.value = ''
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault()
+    setDragging(false)
+    Array.from(e.dataTransfer.files).forEach(uploadFile)
+  }
+
+  function removeDoc(path: string) {
+    setUploadedDocs((prev) => prev.filter((d) => d.path !== path))
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
     if (!sportId || !bio || !hourlyRate || !experience) {
       setError('Merci de remplir tous les champs obligatoires.')
+      return
+    }
+    if (uploadedDocs.length === 0) {
+      setError('Tu dois fournir au moins un justificatif de certification.')
       return
     }
     const token = getAuthToken()
@@ -96,6 +154,7 @@ export default function BecomeCoachPage() {
           specialties,
           availability_text: availabilityText,
           is_available_now: isAvailableNow,
+          certification_doc_urls: uploadedDocs.map((d) => d.url),
         }),
       })
       const data = await res.json()
@@ -111,11 +170,11 @@ export default function BecomeCoachPage() {
   const canProceed =
     step === 1 ? (sportId !== '' && bio.trim().length > 10 && experience !== '' && hourlyRate !== '') :
     step === 2 ? true :
-    true
+    step === 3 ? true :
+    uploadedDocs.length > 0
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => step > 1 ? setStep(s => s - 1) : router.back()}
@@ -129,13 +188,9 @@ export default function BecomeCoachPage() {
             <p className="text-xs text-gray-400">Étape {step}/{TOTAL_STEPS}</p>
           </div>
         </div>
-
-        {/* Progress bar */}
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary-500 rounded-full transition-all duration-500"
-            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
-          />
+          <div className="h-full bg-primary-500 rounded-full transition-all duration-500"
+            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
         </div>
       </div>
 
@@ -151,7 +206,6 @@ export default function BecomeCoachPage() {
                 <p className="text-sm text-gray-400">Parle-nous de ton expertise</p>
               </div>
 
-              {/* Sport */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Sport principal *</label>
                 <div className="grid grid-cols-4 gap-2">
@@ -175,19 +229,10 @@ export default function BecomeCoachPage() {
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Ville *</label>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Paris 15e"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={geolocate}
-                    title="Utiliser ma position"
-                    className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 hover:bg-blue-100 transition-colors"
-                  >
+                  <input type="text" placeholder="Paris 15e" value={city} onChange={(e) => setCity(e.target.value)}
+                    className="flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500" />
+                  <button type="button" onClick={geolocate} title="Utiliser ma position"
+                    className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0 hover:bg-blue-100 transition-colors">
                     {locating ? (
                       <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     ) : (
@@ -280,7 +325,6 @@ export default function BecomeCoachPage() {
                 </div>
               </div>
 
-              {/* Summary */}
               <div className="bg-gray-50 rounded-2xl p-4 text-sm text-gray-600 flex flex-col gap-1.5">
                 <p className="font-bold text-gray-900 mb-1">Résumé de ton profil</p>
                 <p>🏅 Sport : {sports.find(s => s.id === sportId)?.name}</p>
@@ -290,6 +334,114 @@ export default function BecomeCoachPage() {
                 {certifications.length > 0 && <p>🎓 {certifications.join(', ')}</p>}
                 {specialties.length > 0 && <p>⭐ {specialties.slice(0, 3).join(', ')}{specialties.length > 3 ? '…' : ''}</p>}
               </div>
+            </div>
+          )}
+
+          {/* ── STEP 4 : Documents légaux ── */}
+          {step === 4 && (
+            <div className="flex flex-col gap-5 animate-fade-in">
+              <div className="text-center mb-2">
+                <span className="text-4xl">📋</span>
+                <h2 className="text-lg font-extrabold text-gray-900 mt-2">Justificatifs obligatoires</h2>
+                <p className="text-sm text-gray-400">Requis pour valider ton profil coach</p>
+              </div>
+
+              {/* Info légale */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+                <span className="text-xl flex-shrink-0">⚖️</span>
+                <div className="text-xs text-amber-800 leading-relaxed">
+                  <p className="font-bold mb-1">Obligation légale</p>
+                  <p>En tant que coach sportif rémunéré, tu dois justifier d'un diplôme ou titre à finalité professionnelle enregistré au RNCP, conformément à l'article L.212-1 du Code du sport.</p>
+                </div>
+              </div>
+
+              {/* Exemples de documents */}
+              <div className="bg-blue-50 rounded-2xl p-4">
+                <p className="text-xs font-bold text-blue-800 mb-2">Documents acceptés :</p>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• Diplôme d'État (BPJEPS, DEJEPS, DESJEPS)</li>
+                  <li>• CQP (Certificat de Qualification Professionnelle)</li>
+                  <li>• Carte professionnelle valide</li>
+                  <li>• Attestation d'inscription RNCP</li>
+                  <li>• Tout diplôme fédéral reconnu</li>
+                </ul>
+              </div>
+
+              {/* Zone d'upload */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Tes documents * <span className="text-gray-400 font-normal">(PDF, JPG, PNG — max 10 Mo)</span>
+                </label>
+
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    'border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-all',
+                    dragging ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-gray-50 hover:border-primary-300 hover:bg-primary-50/30'
+                  )}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    multiple
+                    onChange={handleFileChange}
+                  />
+                  {uploading ? (
+                    <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                    </svg>
+                  )}
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-gray-700">
+                      {uploading ? 'Upload en cours…' : 'Glisse ici ou clique pour choisir'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">Plusieurs fichiers acceptés</p>
+                  </div>
+                </div>
+
+                {uploadError && (
+                  <p className="text-xs text-red-500 mt-2 font-medium">{uploadError}</p>
+                )}
+              </div>
+
+              {/* Liste des docs uploadés */}
+              {uploadedDocs.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-bold text-green-700">
+                    ✓ {uploadedDocs.length} document{uploadedDocs.length > 1 ? 's' : ''} ajouté{uploadedDocs.length > 1 ? 's' : ''}
+                  </p>
+                  {uploadedDocs.map((doc) => (
+                    <div key={doc.path} className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                      <span className="text-lg flex-shrink-0">
+                        {doc.name.endsWith('.pdf') ? '📄' : '🖼️'}
+                      </span>
+                      <span className="text-xs text-gray-700 flex-1 truncate font-medium">{doc.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeDoc(doc.path)}
+                        className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {uploadedDocs.length === 0 && (
+                <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-xs text-red-600 font-medium">
+                  Au moins un justificatif est requis pour créer ton profil coach.
+                </div>
+              )}
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-2xl px-4 py-3">{error}</div>
@@ -305,7 +457,7 @@ export default function BecomeCoachPage() {
               Continuer →
             </Button>
           ) : (
-            <Button type="submit" fullWidth size="lg" loading={loading}>
+            <Button type="submit" fullWidth size="lg" loading={loading} disabled={uploadedDocs.length === 0}>
               Créer mon profil coach 🚀
             </Button>
           )}

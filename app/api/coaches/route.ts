@@ -93,9 +93,11 @@ export async function POST(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   try {
-    const { sport_id, hourly_rate, description, experience_years, certifications, specialties, city, lat, lng, availability_text, is_available_now } = await req.json()
+    const { sport_id, hourly_rate, description, experience_years, certifications, specialties, city, lat, lng, availability_text, is_available_now, certification_doc_urls } = await req.json()
     if (!sport_id || !hourly_rate || !experience_years)
       return NextResponse.json({ error: 'Sport, tarif et expérience sont requis.' }, { status: 400 })
+    if (!certification_doc_urls || certification_doc_urls.length === 0)
+      return NextResponse.json({ error: 'Au moins un justificatif de certification est obligatoire.' }, { status: 400 })
 
     if (useMockData) {
       const existing = COACHES.find((c) => c.user_id === auth.userId)
@@ -126,7 +128,8 @@ export async function POST(req: NextRequest) {
         description, experienceYears: parseInt(experience_years),
         certifications: certifications ?? [], specialties: specialties ?? [],
         city, lat, lng, isAvailableNow: is_available_now ?? true,
-        isCertified: (certifications ?? []).length > 0, availabilityText: availability_text,
+        isCertified: true, availabilityText: availability_text,
+        certificationDocUrls: certification_doc_urls ?? [],
       })
       .select()
       .single()
