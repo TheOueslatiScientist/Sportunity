@@ -56,7 +56,26 @@
       "Bash(git commit -m 'fix: use clientId/date/SCHEDULED in bookings Prisma query *)",
       "Bash(python3 -c ' *)",
       "Bash(node -e ' *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "mcp__visualize__read_me",
+      "WebFetch(domain:github.com)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'fix: strengthen TS types in chatbot route and tools *)",
+      "Bash(git commit -m 'fix: add groq-sdk to serverExternalPackages for Vercel build *)",
+      "Bash(git commit -m 'debug: return error message in chat response *)",
+      "Bash(git commit -m 'fix: use llama3-70b-8192 model \\(available on all Groq accounts\\) *)",
+      "WebFetch(domain:console.groq.com)",
+      "PowerShell($key = \\(Get-Content \"C:\\\\Users\\\\omsba.DESKTOP-S549PML.000\\\\OneDrive\\\\Bureau\\\\Sportunity\\\\.env.local\" | Select-String \"GROQ_API_KEY\"\\).ToString\\(\\).Split\\(\"=\",2\\)[1].Trim\\(\\); $response = Invoke-RestMethod -Uri \"https://api.groq.com/openai/v1/models\" -Headers @{Authorization=\"Bearer $key\"} -Method Get; $response.data | Where-Object { $_.id -notmatch \"whisper|guard|vision\" } | Select-Object id | Format-Table -AutoSize)",
+      "Bash(git commit -m 'fix: switch to qwen/qwen3.8-27b model available on this Groq account *)",
+      "WebFetch(domain:data.gouv.fr)",
+      "WebFetch(domain:equipements.sports.gouv.fr)",
+      "PowerShell($url = \"https://equipements.sports.gouv.fr/api/explore/v2.1/catalog/datasets/data-es/records?limit=3&refine=dep_code_insee%3A59&select=nom_equip%2Clib_bdv%2Ccoordonnees%2Cequip_type_lib%2Cequip_aps_nom%2Cadresse\"; try { $r = Invoke-RestMethod -Uri $url -Method Get; $r | ConvertTo-Json -Depth 4 | Select-Object -First 60 } catch { $_.Exception.Message })",
+      "PowerShell($url = \"https://equipements.sports.gouv.fr/api/explore/v2.1/catalog/datasets/data-es/records?limit=3\"; try { $r = Invoke-RestMethod -Uri $url -Method Get; $r | ConvertTo-Json -Depth 3 | Select-Object -First 80 } catch { $_.Exception.Message })",
+      "PowerShell($url = \"https://equipements.sports.gouv.fr/api/explore/v2.1/catalog/datasets/data-es/records?limit=5&where=dep_code%3D'59'&select=equip_nom%2Cinst_adresse%2Cnew_name%2Cequip_coordonnees%2Cequip_type_name%2Caps_name%2Cequip_acc_libre%2Clib_bdv\"; $r = Invoke-RestMethod -Uri $url -Method Get; \"Total MEL/Nord: $\\($r.total_count\\)\"; $r.results | ForEach-Object { \"$\\($_.new_name\\) — $\\($_.equip_type_name\\) — $\\($_.equip_nom\\)\" })",
+      "Bash(git commit -m 'feat: add admin endpoint to import MEL infrastructure from RES API *)",
+      "Bash(git commit -m 'fix: parallelize MEL import, add maxDuration for Vercel timeout *)",
+      "Bash(git commit -m 'fix: paginated import endpoint, remove maxDuration \\(Hobby plan\\) *)",
+      "Bash(Select-String \"USE_MOCK\")"
     ]
   }
 }

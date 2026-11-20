@@ -5,18 +5,24 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 
 interface EventCardProps {
-  event: SportEvent
+  event: SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean }
   onJoin?: (id: number) => void
   onLeave?: (id: number) => void
+  onAccept?: (eventId: number, profileId: number) => void
+  onReject?: (eventId: number, profileId: number) => void
   joining?: boolean
   leaving?: boolean
   currentUserId?: number
+  pendingRequests?: { profile_id: number; profile: { name: string; avatar_url?: string } | null }[]
 }
 
-export default function EventCard({ event, onJoin, onLeave, joining, leaving, currentUserId }: EventCardProps) {
+export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, joining, leaving, currentUserId, pendingRequests }: EventCardProps) {
   const spotsLeft = event.max_participants - event.participants_count
   const isFull = spotsLeft <= 0
-  const isParticipant = event.participants?.some((p) => p.user_id === currentUserId)
+  const joinStatus = event.join_status ?? (event.participants?.some((p) => p.user_id === currentUserId) ? 'accepted' : 'none')
+  const isParticipant = joinStatus === 'accepted'
+  const isPending = joinStatus === 'pending'
+  const isCreator = event.is_creator ?? event.creator_id === currentUserId
 
   return (
     <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden hover:shadow-card-hover transition-all duration-300 active:scale-[0.98]">
@@ -100,34 +106,51 @@ export default function EventCard({ event, onJoin, onLeave, joining, leaving, cu
           />
         </div>
 
-        {onJoin && !isParticipant && !isFull && (
-          <Button
-            fullWidth
-            size="sm"
-            className="mt-3"
-            loading={joining}
-            onClick={() => onJoin(event.id)}
-          >
+        {/* Participant actions */}
+        {!isCreator && onJoin && !isParticipant && !isPending && !isFull && (
+          <Button fullWidth size="sm" className="mt-3" loading={joining} onClick={() => onJoin(event.id)}>
             Rejoindre l&apos;événement
           </Button>
         )}
-        {isParticipant && (
+        {!isCreator && isPending && (
+          <div className="mt-3 text-center text-xs font-semibold text-orange-500 bg-orange-50 rounded-xl py-2">
+            ⏳ Demande en attente d'approbation
+          </div>
+        )}
+        {!isCreator && isParticipant && (
           <div className="mt-3 flex items-center gap-2">
-            <div className="flex-1 text-center text-xs font-semibold text-primary-500 bg-primary-50 rounded-xl py-2">
-              ✅ Vous participez
-            </div>
+            <a href={`/events/${event.id}/chat`} className="flex-1 text-center text-xs font-semibold text-primary-600 bg-primary-50 rounded-xl py-2 flex items-center justify-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 3H3a2 2 0 00-2 2v13a2 2 0 002 2h7l3 3 3-3h5a2 2 0 002-2V5a2 2 0 00-2-2z" /></svg>
+              Chat du groupe
+            </a>
             {onLeave && (
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={leaving}
-                onClick={() => onLeave(event.id)}
-                className="text-red-500 border-red-100 hover:bg-red-50"
-              >
+              <Button variant="secondary" size="sm" loading={leaving} onClick={() => onLeave(event.id)} className="text-red-500 border-red-100 hover:bg-red-50">
                 Quitter
               </Button>
             )}
           </div>
+        )}
+
+        {/* Creator: pending requests */}
+        {isCreator && (pendingRequests?.length ?? 0) > 0 && (
+          <div className="mt-3 border-t border-gray-100 pt-3 flex flex-col gap-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Demandes ({pendingRequests!.length})</p>
+            {pendingRequests!.map((req) => (
+              <div key={req.profile_id} className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
+                  <img src={req.profile?.avatar_url ?? `https://api.dicebear.com/8.x/avataaars/svg?seed=${req.profile?.name}`} alt="" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{req.profile?.name}</span>
+                <button onClick={() => onAccept?.(event.id, req.profile_id)} className="text-xs font-bold text-white bg-green-500 hover:bg-green-600 px-2.5 py-1 rounded-lg transition-colors">✓</button>
+                <button onClick={() => onReject?.(event.id, req.profile_id)} className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {isCreator && (
+          <a href={`/events/${event.id}/chat`} className="mt-3 block text-center text-xs font-semibold text-primary-600 bg-primary-50 rounded-xl py-2">
+            💬 Chat du groupe
+          </a>
         )}
       </div>
     </div>

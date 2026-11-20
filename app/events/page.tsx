@@ -16,12 +16,13 @@ const LEVEL_FILTERS = [
 ]
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<SportEvent[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [joiningId, setJoiningId] = useState<number | null>(null)
   const [leavingId, setLeavingId] = useState<number | null>(null)
   const [level, setLevel] = useState('all')
   const [currentUserId, setCurrentUserId] = useState<number | undefined>()
+  const [requests, setRequests] = useState<Record<number, any[]>>({})
 
   useEffect(() => {
     const user = getStoredUser()
@@ -34,7 +35,20 @@ export default function EventsPage() {
     const params = level !== 'all' ? `?level=${level}` : ''
     fetch(`/api/events${params}`, { headers })
       .then((r) => r.json())
-      .then((data) => { setEvents(data.data ?? []); setLoading(false) })
+      .then(async (data) => {
+        const evs = data.data ?? []
+        setEvents(evs)
+        setLoading(false)
+        // Load pending requests for events the user created
+        if (!token) return
+        const createdEvents = evs.filter((e: any) => e.is_creator) as any[]
+        const reqMap: Record<number, any[]> = {}
+        await Promise.all(createdEvents.map(async (e: any) => {
+          const r = await fetch(`/api/events/${e.id}/requests`, { headers: { Authorization: `Bearer ${token}` } })
+          if (r.ok) { const d = await r.json(); reqMap[e.id] = (d.data ?? []).filter((x: any) => x.status === 'PENDING') }
+        }))
+        setRequests(reqMap)
+      })
   }, [level])
 
   async function handleJoin(eventId: number) {
@@ -60,6 +74,29 @@ export default function EventsPage() {
     }
   }
 
+  async function handleAccept(eventId: number, profileId: number) {
+    const token = getAuthToken()
+    if (!token) return
+    await fetch(`/api/events/${eventId}/requests`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId, action: 'accept' }),
+    })
+    setRequests((prev) => ({ ...prev, [eventId]: (prev[eventId] ?? []).filter((r) => r.profile_id !== profileId) }))
+    setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, participants_count: e.participants_count + 1 } : e))
+  }
+
+  async function handleReject(eventId: number, profileId: number) {
+    const token = getAuthToken()
+    if (!token) return
+    await fetch(`/api/events/${eventId}/requests`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId, action: 'reject' }),
+    })
+    setRequests((prev) => ({ ...prev, [eventId]: (prev[eventId] ?? []).filter((r) => r.profile_id !== profileId) }))
+  }
+
   async function handleLeave(eventId: number) {
     const token = getAuthToken()
     if (!token) { window.location.href = '/login'; return }
@@ -73,7 +110,7 @@ export default function EventsPage() {
         setEvents((prev) =>
           prev.map((e) =>
             e.id === eventId
-              ? { ...e, participants_count: Math.max(0, e.participants_count - 1), participants: (e.participants ?? []).filter((p) => p.user_id !== currentUserId) }
+              ? { ...e, participants_count: Math.max(0, e.participants_count - 1), participants: (e.participants ?? []).filter((p: any) => p.user_id !== currentUserId) }
               : e
           )
         )
@@ -143,9 +180,12 @@ export default function EventsPage() {
                 event={event}
                 onJoin={handleJoin}
                 onLeave={handleLeave}
+                onAccept={handleAccept}
+                onReject={handleReject}
                 joining={joiningId === event.id}
                 leaving={leavingId === event.id}
                 currentUserId={currentUserId}
+                pendingRequests={requests[event.id]}
               />
             ))}
           </div>

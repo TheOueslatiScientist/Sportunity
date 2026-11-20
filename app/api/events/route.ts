@@ -39,17 +39,21 @@ export async function GET(req: NextRequest) {
 
     const eventIds = rows.map((e: any) => e.id)
 
-    // Fetch participant counts for all events
+    // Fetch participant counts (only ACCEPTED count toward spots)
     const { data: participantRows } = await supabaseAdmin
       .from('event_participants')
-      .select('eventId, profileId')
+      .select('eventId, profileId, status')
       .in('eventId', eventIds)
 
     const countMap: Record<number, number> = {}
-    const joinedSet = new Set<number>()
+    const joinedSet = new Set<number>()   // ACCEPTED
+    const pendingSet = new Set<number>()  // PENDING
     for (const p of participantRows ?? []) {
-      countMap[p.eventId] = (countMap[p.eventId] ?? 0) + 1
-      if (currentUserId && p.profileId === currentUserId) joinedSet.add(p.eventId)
+      if (p.status === 'ACCEPTED') countMap[p.eventId] = (countMap[p.eventId] ?? 0) + 1
+      if (currentUserId && p.profileId === currentUserId) {
+        if (p.status === 'ACCEPTED') joinedSet.add(p.eventId)
+        else if (p.status === 'PENDING') pendingSet.add(p.eventId)
+      }
     }
 
     // Fetch current user's profile name for the avatar stack
@@ -67,6 +71,8 @@ export async function GET(req: NextRequest) {
       level: e.level,
       participants_count: countMap[e.id] ?? 0,
       participants: joinedSet.has(e.id) ? [{ user_id: currentUserId, name: currentUserName }] : [],
+      join_status: joinedSet.has(e.id) ? 'accepted' : pendingSet.has(e.id) ? 'pending' : 'none',
+      is_creator: currentUserId === e.creatorId,
       created_at: e.createdAt,
     }))
 

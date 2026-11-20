@@ -1,5 +1,5 @@
 // Server-side only — called from API routes
-export type NotifType = 'match_joined' | 'match_full' | 'new_message' | 'match_comment'
+export type NotifType = 'match_joined' | 'match_full' | 'new_message' | 'match_comment' | 'event_request' | 'event_accepted'
 
 export async function createNotification({
   userId, type, title, body, relatedId,

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: event } = await supabaseAdmin
     .from('sport_events')
-    .select('id, maxParticipants')
+    .select('id, maxParticipants, title, creatorId')
     .eq('id', eventId)
     .single()
   if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
@@ -51,11 +51,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { error } = await supabaseAdmin
     .from('event_participants')
-    .insert({ eventId, profileId: auth.userId as number })
+    .insert({ eventId, profileId: auth.userId as number, status: 'PENDING' })
   if (error) {
     console.error('[POST join event]', error)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
   }
 
-  return NextResponse.json({ message: "Vous avez rejoint l'événement !" })
+  // Notify creator of the new request
+  const { data: requester } = await supabaseAdmin.from('profiles').select('name').eq('id', auth.userId as number).single()
+  const { createNotification } = await import('@/lib/notify')
+  await createNotification({
+    userId: event.creatorId as number, type: 'event_request',
+    title: `${requester?.name ?? 'Quelqu\'un'} veut rejoindre ton event`,
+    body: event.title, relatedId: eventId,
+  })
+
+  return NextResponse.json({ message: 'Demande envoyée !', status: 'PENDING' })
 }
