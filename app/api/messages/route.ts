@@ -29,6 +29,16 @@ export async function POST(req: NextRequest) {
       .select()
       .single()
     if (error) throw error
+
+    // Notify receiver
+    const { data: sender } = await supabaseAdmin.from('profiles').select('name').eq('id', auth.userId as number).single()
+    const { createNotification } = await import('@/lib/notify')
+    await createNotification({
+      userId: receiver_id, type: 'new_message',
+      title: `Nouveau message de ${sender?.name ?? 'quelqu\'un'}`,
+      body: content.trim().slice(0, 80),
+    })
+
     return NextResponse.json({ data: { ...msg, sender_id: msg.senderId, receiver_id: msg.receiverId, created_at: msg.createdAt } }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/messages]', err)
