@@ -39,8 +39,15 @@ export async function GET(req: NextRequest) {
     .in('id', peerIds)
   const profileMap = Object.fromEntries((profileRows ?? []).map((p: any) => [p.id, p]))
 
+  const seenPeers = new Set<number>()
   const accepted = rows
     .filter((f: any) => f.status === 'ACCEPTED')
+    .filter((f: any) => {
+      const peerId = f.requesterId === userId ? f.addresseeId : f.requesterId
+      if (seenPeers.has(peerId)) return false
+      seenPeers.add(peerId)
+      return true
+    })
     .map((f: any) => {
       const peerId = f.requesterId === userId ? f.addresseeId : f.requesterId
       return { id: f.id, status: 'accepted', requester_id: f.requesterId, addressee_id: f.addresseeId, friend: serializeProfile(profileMap[peerId]) }
