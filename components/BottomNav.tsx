@@ -9,7 +9,7 @@ export default function BottomNav() {
   const pathname = usePathname()
   const [showCreate, setShowCreate] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [pendingCount, setPendingCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const user = getStoredUser()
@@ -20,14 +20,14 @@ export default function BottomNav() {
     }
   }, [pathname])
 
-  // Poll pending friend requests count every 30s
+  // Poll unread notifications count every 30s
   useEffect(() => {
     function fetchCount() {
       const token = getAuthToken()
       if (!token) return
-      fetch('/api/friends', { headers: { Authorization: `Bearer ${token}` } })
+      fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.ok ? r.json() : null)
-        .then((d) => { if (d) setPendingCount((d.data?.pending_received ?? []).length) })
+        .then((d) => { if (d) setUnreadCount(d.unread_count ?? 0) })
         .catch(() => {})
     }
     fetchCount()
@@ -35,9 +35,9 @@ export default function BottomNav() {
     return () => clearInterval(interval)
   }, [])
 
-  // Reset badge when visiting network page
+  // Reset badge when visiting notifications page
   useEffect(() => {
-    if (pathname === '/search') setPendingCount(0)
+    if (pathname === '/notifications') setUnreadCount(0)
   }, [pathname])
 
   const left = [
@@ -50,10 +50,10 @@ export default function BottomNav() {
       ),
     },
     {
-      href: '/chat', label: 'Messages',
+      href: '/events', label: 'Événements',
       icon: (a: boolean) => (
         <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
     },
@@ -61,24 +61,31 @@ export default function BottomNav() {
 
   const right = [
     {
-      href: '/search', label: 'Réseau',
-      badge: pendingCount,
+      href: '/chat', label: 'Messages',
       icon: (a: boolean) => (
         <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+    },
+    {
+      href: '/notifications', label: 'Alertes',
+      badge: unreadCount,
+      icon: (a: boolean) => (
+        <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
         </svg>
       ),
     },
     {
       href: '/profile', label: 'Profil',
-      icon: (a: boolean) => avatarUrl ? (
-        <div className={cn('w-6 h-6 rounded-full overflow-hidden border-2', a ? 'border-primary-700' : 'border-gray-300')}>
-          <img src={avatarUrl} alt="profil" className="w-full h-full object-cover" />
+      icon: (a: boolean) => (
+        <div className={cn('w-6 h-6 rounded-full overflow-hidden border-2 bg-gray-100 flex-shrink-0', a ? 'border-primary-700' : 'border-gray-300')}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt="profil" className="w-full h-full object-cover" />
+            : <svg className="w-full h-full text-gray-400 p-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          }
         </div>
-      ) : (
-        <svg className="w-5 h-5" fill={a ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
       ),
     },
   ]

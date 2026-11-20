@@ -76,9 +76,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const mediaUrls = media.length > 0 ? media : (image_url ? [{ url: image_url, type: 'image' }] : [])
+    const firstImageUrl = mediaUrls.length > 0 ? mediaUrls[0].url : null
     const { data: post, error } = await supabaseAdmin
       .from('posts')
-      .insert({ authorId: auth.userId as number, content: content?.trim() ?? '', imageUrl: image_url ?? null, sportId: sport_id ?? null, type })
+      .insert({ authorId: auth.userId as number, content: content?.trim() ?? '', imageUrl: firstImageUrl, sportId: sport_id ?? null, type })
       .select()
       .single()
     if (error) throw error
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
     const { data: author } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,isCoach').eq('id', auth.userId as number).single()
     return NextResponse.json({
       data: {
-        id: post.id, content: post.content, image_url: post.imageUrl, type: post.type,
+        id: post.id, content: post.content, image_url: post.imageUrl, media: mediaUrls, type: post.type,
         likes: 0, created_at: post.createdAt, sport_id: post.sportId, comments_count: 0,
         author: author ? { id: author.id, name: author.name, avatar_url: author.avatarUrl, is_coach: author.isCoach } : null,
       },

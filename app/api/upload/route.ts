@@ -1,10 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join, extname } from 'path'
 import { getUserFromRequest } from '@/lib/auth'
 
-const ALLOWED_IMAGE = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-const ALLOWED_VIDEO = ['.mp4', '.mov', '.webm']
+const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const ALLOWED_VIDEO = ['video/mp4', 'video/quicktime', 'video/webm']
 const MAX_SIZE_MB = 50
 
 export async function POST(req: NextRequest) {
@@ -14,44 +12,42 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
-
     if (!file) return NextResponse.json({ error: 'Aucun fichier reçu.' }, { status: 400 })
 
-    const ext = extname(file.name).toLowerCase()
-    const isImage = ALLOWED_IMAGE.includes(ext)
-    const isVideo = ALLOWED_VIDEO.includes(ext)
-
+    const isImage = ALLOWED_IMAGE.includes(file.type)
+    const isVideo = ALLOWED_VIDEO.includes(file.type)
     if (!isImage && !isVideo) {
-      return NextResponse.json(
-        { error: 'Format non supporté. Utilisez jpg, png, mp4 ou mov.' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Format non supporté. Utilisez jpg, png, mp4 ou mov.' }, { status: 400 })
     }
-
-    const sizeMB = file.size / (1024 * 1024)
-    if (sizeMB > MAX_SIZE_MB) {
+    if (file.size / (1024 * 1024) > MAX_SIZE_MB) {
       return NextResponse.json({ error: `Fichier trop lourd (max ${MAX_SIZE_MB}Mo).` }, { status: 400 })
     }
 
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+
+    // Ensure bucket exists
+    await supabaseAdmin.storage.createBucket('media', { public: true }).catch(() => {})
+
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? (isVideo ? 'mp4' : 'jpg')
+    const filename = `${Date.now()}_${auth.userId}.${ext}`
+    const folder = isVideo ? 'videos' : 'images'
+    const path = `${folder}/${filename}`
+
     const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
+    const { error } = await supabaseAdmin.storage
+      .from('media')
+      .upload(path, bytes, { contentType: file.type, upsert: false })
 
-    // Sanitize filename + add timestamp to avoid collisions
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const filename = `${Date.now()}_${auth.userId}_${safeName}`
+    if (error) {
+      console.error('[upload] Supabase storage error:', error)
+      return NextResponse.json({ error: 'Erreur lors de l\'upload.' }, { status: 500 })
+    }
 
-    const uploadDir = join(process.cwd(), 'public', 'uploads')
-    await mkdir(uploadDir, { recursive: true })
-    await writeFile(join(uploadDir, filename), buffer)
+    const { data: { publicUrl } } = supabaseAdmin.storage.from('media').getPublicUrl(path)
 
-    return NextResponse.json({
-      url: `/uploads/${filename}`,
-      type: isVideo ? 'video' : 'image',
-      name: file.name,
-      size: file.size,
-    }, { status: 201 })
+    return NextResponse.json({ url: publicUrl, type: isVideo ? 'video' : 'image' }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/upload]', err)
-    return NextResponse.json({ error: 'Erreur lors de l\'upload.' }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
   }
 }
