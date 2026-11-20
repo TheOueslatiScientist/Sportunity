@@ -8,7 +8,7 @@ import { getStoredUser, getAuthToken } from '@/lib/client-utils'
 
 function ChatPageInner() {
   const searchParams = useSearchParams()
-  const preselectedUserId = searchParams.get('userId')
+  const preselectedUserId = searchParams.get('user') ?? searchParams.get('userId')
 
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null)
@@ -139,10 +139,12 @@ function ChatPageInner() {
   // Pre-select user from URL param
   useEffect(() => {
     if (!preselectedUserId || loading) return
-    import('@/lib/mock-data').then(({ PROFILES }) => {
-      const profile = PROFILES.find((p) => p.user_id === parseInt(preselectedUserId))
-      if (profile) openConversation(profile)
-    })
+    const token = getAuthToken()
+    if (!token) return
+    fetch(`/api/users/${preselectedUserId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.data) openConversation(d.data) })
+      .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselectedUserId, loading])
 
