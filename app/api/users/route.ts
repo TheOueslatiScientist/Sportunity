@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: users })
   }
 
+  const q = searchParams.get('q')
+
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
   let query = supabaseAdmin
     .from('profiles')
@@ -25,6 +27,7 @@ export async function GET(req: NextRequest) {
     .neq('id', auth.userId as number)
     .limit(20)
   if (city) query = query.ilike('city', `%${city}%`)
+  if (q) query = query.ilike('name', `%${q}%`)
 
   const { data: rows } = await query
   const profiles = (rows ?? []).map((p: any) => ({
