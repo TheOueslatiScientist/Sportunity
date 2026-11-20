@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       userId: receiver_id, type: 'new_message',
       title: `Nouveau message de ${sender?.name ?? 'quelqu\'un'}`,
       body: content.trim().slice(0, 80),
+      relatedId: auth.userId as number,
     })
 
     return NextResponse.json({ data: { ...msg, sender_id: msg.senderId, receiver_id: msg.receiverId, created_at: msg.createdAt } }, { status: 201 })

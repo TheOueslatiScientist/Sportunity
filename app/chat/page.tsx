@@ -1,10 +1,22 @@
 'use client'
-import { useState, useEffect, useRef, FormEvent, Suspense } from 'react'
+import { useState, useEffect, useRef, FormEvent, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Conversation, Message, Profile } from '@/types'
 import BottomNav from '@/components/BottomNav'
 import { cn } from '@/lib/utils'
 import { getStoredUser, getAuthToken } from '@/lib/client-utils'
+
+function timeLabel(iso: string) {
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+}
+function dateLabel(iso: string) {
+  const d = new Date(iso)
+  const today = new Date()
+  if (d.toDateString() === today.toDateString()) return "Aujourd'hui"
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return 'Hier'
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
 
 function ChatPageInner() {
   const searchParams = useSearchParams()
@@ -19,66 +31,45 @@ function ChatPageInner() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const activeProfileRef = useRef<Profile | null>(null)
 
   useEffect(() => {
     const user = getStoredUser()
     if (user) setCurrentUserId(user.id)
   }, [])
 
-  // Load conversations from API + seed with mock fallback
-  useEffect(() => {
-    loadConversations()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadConversations = useCallback(async () => {
+    const token = getAuthToken()
+    if (!token) return
+    try {
+      const res = await fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) {
+        const data = await res.json()
+        setConversations(data.data ?? [])
+      }
+    } catch { /* ignore */ }
   }, [])
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true)
+      await loadConversations()
+      setLoading(false)
+    }
+    init()
+  }, [loadConversations])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Stop polling when leaving a conversation
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
 
-  async function loadConversations() {
-    setLoading(true)
-    try {
-      const token = getAuthToken()
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
-      const res = await fetch('/api/conversations', { headers })
-      if (res.ok) {
-        const data = await res.json()
-        setConversations(data.data ?? [])
-      } else {
-        // Fallback to mock
-        const { CONVERSATIONS } = await import('@/lib/mock-data')
-        setConversations(CONVERSATIONS)
-      }
-    } catch {
-      const { CONVERSATIONS } = await import('@/lib/mock-data')
-      setConversations(CONVERSATIONS)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function openConversation(profile: Profile) {
-    setActiveProfile(profile)
-    await loadMessages(profile.user_id)
-
-    // Poll for new messages every 3s
-    if (pollRef.current) clearInterval(pollRef.current)
-    pollRef.current = setInterval(() => {
-      loadMessages(profile.user_id, true)
-    }, 3000)
-  }
-
-  async function loadMessages(otherUserId: number, silent = false) {
+  const loadMessages = useCallback(async (otherUserId: number, silent = false) => {
     const token = getAuthToken()
     if (!token) return
-    if (!silent) setMessages([])
     try {
       const res = await fetch(`/api/messages/${otherUserId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -86,14 +77,26 @@ function ChatPageInner() {
       if (res.ok) {
         const data = await res.json()
         setMessages(data.data ?? [])
+        if (!silent) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
-    } catch {
-      // silently fail on poll
-    }
-  }
+    } catch { /* ignore */ }
+  }, [])
+
+  const openConversation = useCallback(async (profile: Profile) => {
+    setActiveProfile(profile)
+    activeProfileRef.current = profile
+    setMessages([])
+    await loadMessages(profile.user_id)
+
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(() => {
+      if (activeProfileRef.current) loadMessages(activeProfileRef.current.user_id, true)
+    }, 3000)
+  }, [loadMessages])
 
   function closeConversation() {
     if (pollRef.current) clearInterval(pollRef.current)
+    activeProfileRef.current = null
     setActiveProfile(null)
     setMessages([])
     loadConversations()
@@ -101,7 +104,7 @@ function ChatPageInner() {
 
   async function sendMessage(e: FormEvent) {
     e.preventDefault()
-    if (!input.trim() || !activeProfile) return
+    if (!input.trim() || !activeProfile || sending) return
 
     const token = getAuthToken()
     if (!token) { window.location.href = '/login'; return }
@@ -110,7 +113,6 @@ function ChatPageInner() {
     setInput('')
     setSending(true)
 
-    // Optimistic update
     const tempMsg: Message = {
       id: Date.now(),
       sender_id: currentUserId!,
@@ -122,33 +124,29 @@ function ChatPageInner() {
     setMessages((prev) => [...prev, tempMsg])
 
     try {
-      const res = await fetch('/api/messages', {
+      await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ receiver_id: activeProfile.user_id, content: text }),
       })
-      if (res.ok) {
-        // Replace temp message with real one
-        await loadMessages(activeProfile.user_id, true)
-      }
+      await loadMessages(activeProfile.user_id, true)
     } finally {
       setSending(false)
     }
   }
 
-  // Pre-select user from URL param
+  // Open conversation from URL param
   useEffect(() => {
     if (!preselectedUserId || loading) return
     const token = getAuthToken()
     if (!token) return
     fetch(`/api/users/${preselectedUserId}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => { if (d.data) openConversation(d.data) })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.data) openConversation(d.data) })
       .catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preselectedUserId, loading])
+  }, [preselectedUserId, loading, openConversation])
 
-  // ── Conversation list view ──────────────────────────────────────────────────
+  // ── Conversation list ───────────────────────────────────────────────────────
   if (!activeProfile) {
     return (
       <div className="h-screen flex flex-col bg-gray-50">
@@ -180,31 +178,31 @@ function ChatPageInner() {
               <button
                 key={conv.user.id}
                 onClick={() => openConversation(conv.user)}
-                className="w-full flex items-center gap-3 p-4 bg-white hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+                className="w-full flex items-center gap-3 p-4 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-100 last:border-0"
               >
                 <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0 relative">
                   {conv.user.avatar_url ? (
                     <img src={conv.user.avatar_url} alt={conv.user.name} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">
-                      {conv.user.name[0]}
+                    <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-lg">
+                      {conv.user.name?.[0] ?? '?'}
                     </div>
                   )}
                   {conv.unread_count > 0 && (
-                    <div className="absolute top-0 right-0 w-3 h-3 bg-primary-500 rounded-full border-2 border-white" />
+                    <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-primary-500 rounded-full border-2 border-white" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className={cn('text-sm', conv.unread_count > 0 ? 'font-bold text-gray-900' : 'font-semibold text-gray-700')}>
                       {conv.user.name}
                     </span>
-                    <span className="text-[10px] text-gray-400">
-                      {new Date(conv.last_message.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">
+                      {timeLabel(conv.last_message.created_at)}
                     </span>
                   </div>
                   <p className={cn('text-xs truncate mt-0.5', conv.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-400')}>
-                    {conv.last_message.content}
+                    {conv.last_message.sender_id === currentUserId ? 'Toi : ' : ''}{conv.last_message.content}
                   </p>
                 </div>
                 {conv.unread_count > 0 && (
@@ -222,11 +220,21 @@ function ChatPageInner() {
     )
   }
 
-  // ── Active chat view ────────────────────────────────────────────────────────
+  // ── Active chat ─────────────────────────────────────────────────────────────
+  // Group messages by day
+  const groups: { label: string; messages: Message[] }[] = []
+  for (const msg of messages) {
+    const label = dateLabel(msg.created_at)
+    if (!groups.length || groups[groups.length - 1].label !== label) {
+      groups.push({ label, messages: [] })
+    }
+    groups[groups.length - 1].messages.push(msg)
+  }
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      {/* Chat header */}
-      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-3 flex items-center gap-3 flex-shrink-0">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 px-4 pt-10 pb-3 flex items-center gap-3 flex-shrink-0">
         <button
           onClick={closeConversation}
           className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0"
@@ -239,51 +247,65 @@ function ChatPageInner() {
           {activeProfile.avatar_url ? (
             <img src={activeProfile.avatar_url} alt={activeProfile.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">
-              {activeProfile.name[0]}
+            <div className="w-full h-full flex items-center justify-center font-bold text-gray-400 text-lg">
+              {activeProfile.name?.[0] ?? '?'}
             </div>
           )}
         </div>
-        <div className="flex-1">
-          <p className="font-bold text-sm text-gray-900">{activeProfile.name}</p>
-          <p className="text-xs text-green-500 font-medium">En ligne</p>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm text-gray-900 truncate">{activeProfile.name}</p>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2">
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col">
         {messages.length === 0 && (
-          <div className="text-center py-8 text-sm text-gray-400">
-            Début de la conversation avec {activeProfile.name}
+          <div className="text-center py-16 text-sm text-gray-400">
+            Début de la conversation avec {activeProfile.name} 👋
           </div>
         )}
-        {messages.map((msg) => {
-          const isMe = msg.sender_id === currentUserId
-          return (
-            <div key={msg.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
-              <div
-                className={cn(
-                  'max-w-[75%] px-4 py-2.5 rounded-2xl text-sm',
-                  isMe
-                    ? 'bg-primary-500 text-white rounded-br-sm'
-                    : 'bg-white text-gray-900 shadow-card rounded-bl-sm'
-                )}
-              >
-                <p>{msg.content}</p>
-                <p className={cn('text-[10px] mt-1', isMe ? 'text-white/60' : 'text-gray-400')}>
-                  {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="flex items-center gap-3 my-3">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-gray-400 font-medium">{group.label}</span>
+              <div className="flex-1 h-px bg-gray-200" />
             </div>
-          )
-        })}
+            <div className="flex flex-col gap-1">
+              {group.messages.map((msg, i) => {
+                const isMe = msg.sender_id === currentUserId
+                const prevMsg = group.messages[i - 1]
+                const sameSender = prevMsg?.sender_id === msg.sender_id
+                return (
+                  <div key={msg.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start', sameSender ? 'mt-0.5' : 'mt-3')}>
+                    <div className={cn('max-w-[75%] flex flex-col', isMe ? 'items-end' : 'items-start')}>
+                      <div className={cn(
+                        'px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
+                        isMe
+                          ? 'bg-primary-500 text-white rounded-br-sm'
+                          : 'bg-white text-gray-900 shadow-sm border border-gray-100 rounded-bl-sm'
+                      )}>
+                        {msg.content}
+                      </div>
+                      {(!sameSender || i === group.messages.length - 1) && (
+                        <span className={cn('text-[10px] mt-1 mx-1', isMe ? 'text-gray-400' : 'text-gray-400')}>
+                          {timeLabel(msg.created_at)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
       <form
         onSubmit={sendMessage}
-        className="bg-white border-t border-gray-100 px-4 py-3 flex items-center gap-2 pb-safe"
+        className="bg-white border-t border-gray-100 px-4 py-3 flex items-center gap-2"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
         <input
@@ -291,12 +313,13 @@ function ChatPageInner() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Écrire un message…"
+          autoComplete="off"
           className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
         />
         <button
           type="submit"
           disabled={!input.trim() || sending}
-          className="w-10 h-10 bg-primary-500 text-white rounded-2xl flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform"
+          className="w-10 h-10 bg-primary-500 text-white rounded-2xl flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform flex-shrink-0"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
