@@ -61,10 +61,12 @@ export default function EventsPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (res.ok) {
+        const data = await res.json()
+        const newStatus = data.status === 'PENDING' ? 'pending' : 'accepted'
         setEvents((prev) =>
           prev.map((e) =>
             e.id === eventId
-              ? { ...e, participants_count: e.participants_count + 1, participants: [...(e.participants ?? []), { id: 0, user_id: currentUserId!, name: '', avatar_url: '', is_coach: false, email: '' }] }
+              ? { ...e, join_status: newStatus }
               : e
           )
         )
