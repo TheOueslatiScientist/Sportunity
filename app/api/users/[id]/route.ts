@@ -20,11 +20,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', id).single()
   if (!profile) return NextResponse.json({ error: 'Utilisateur introuvable.' }, { status: 404 })
 
+  // Stats: matches played, friend count
+  const [{ count: matchCount }, { count: friendCount }, { data: recentMatches }] = await Promise.all([
+    supabaseAdmin.from('match_participants').select('*', { count: 'exact', head: true }).eq('profileId', id),
+    supabaseAdmin.from('friendships').select('*', { count: 'exact', head: true })
+      .or(`requesterId.eq.${id},addresseeId.eq.${id}`).eq('status', 'ACCEPTED'),
+    supabaseAdmin.from('match_participants')
+      .select('matchId, matches(id, title, date, status, sportId)')
+      .eq('profileId', id)
+      .order('matchId', { ascending: false })
+      .limit(3),
+  ])
+
+  const matches = (recentMatches ?? []).map((r: any) => r.matches).filter(Boolean)
+
   return NextResponse.json({
     data: {
       id: profile.id, user_id: profile.id, name: profile.name, avatar_url: profile.avatarUrl,
       bio: profile.bio, city: profile.city, level: profile.level?.toLowerCase(),
       is_coach: profile.isCoach, email: profile.email, sports: [],
+      stats: { matches: matchCount ?? 0, friends: friendCount ?? 0 },
+      recent_matches: matches,
     },
   })
 }
