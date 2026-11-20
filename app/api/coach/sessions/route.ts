@@ -3,6 +3,17 @@ import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
 import { COACH_SESSIONS, COACHES, PROFILES, getNextId } from '@/lib/mock-data'
 
+function serializeProfile(p: any) {
+  return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city }
+}
+
+function serializeCoach(c: any) {
+  return {
+    id: c.id, profile_id: c.profileId, profile: c._profile ? serializeProfile(c._profile) : null,
+    hourly_rate: c.hourlyRate, rating: c.rating, is_certified: c.isCertified, city: c.city,
+  }
+}
+
 export async function GET(req: NextRequest) {
   const auth = await getUserFromRequest(req)
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
@@ -11,63 +22,59 @@ export async function GET(req: NextRequest) {
   const role   = searchParams.get('role') ?? 'coach'
   const status = searchParams.get('status')
 
-  // ── Mock mode ────────────────────────────────────────────────────────────────
   if (useMockData) {
     const coach = COACHES.find((c) => c.user_id === auth.userId)
     let sessions = [...COACH_SESSIONS]
-
     if (role === 'coach' && coach) sessions = sessions.filter((s) => s.coach_id === coach.id)
     else sessions = sessions.filter((s) => s.client_id === auth.userId)
     if (status) sessions = sessions.filter((s) => s.status === status)
-
     sessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     sessions = sessions.map((s) => ({
       ...s,
       coach: s.coach ?? COACHES.find((c) => c.id === s.coach_id),
       client: s.client ?? PROFILES.find((p) => p.user_id === s.client_id),
     }))
-
     const upcoming = sessions.filter((s) => s.status === 'scheduled' && new Date(s.date) > new Date()).length
     const completed = sessions.filter((s) => s.status === 'completed').length
     const totalRevenue = sessions.filter((s) => s.status === 'completed').reduce((sum, s) => sum + (s.price ?? 0), 0)
     const uniqueClients = new Set(sessions.map((s) => s.client_id)).size
-
     return NextResponse.json({ data: sessions, stats: { upcoming, completed, totalRevenue, uniqueClients } })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
-  const coach = await prisma.coach.findUnique({ where: { profileId: auth.userId } })
+  let coachRow: any = null
+  if (role === 'coach') {
+    const { data } = await supabaseAdmin.from('coaches').select('id').eq('profileId', auth.userId as number).single()
+    coachRow = data
+  }
 
-  const where: any = {}
-  if (role === 'coach' && coach) where.coachId = coach.id
-  else where.clientId = auth.userId
-  if (status) where.status = status.toUpperCase()
+  let query = supabaseAdmin
+    .from('coach_sessions')
+    .select('id,coachId,clientId,date,durationMinutes,location,city,status,notes,price,createdAt')
+    .order('date', { ascending: true })
 
-  const sessions = await prisma.coachSession.findMany({
-    where,
-    include: {
-      coach: { include: { profile: true, sport: true } },
-      client: true,
-    },
-    orderBy: { date: 'asc' },
-  })
+  if (role === 'coach' && coachRow) query = query.eq('coachId', coachRow.id)
+  else query = query.eq('clientId', auth.userId as number)
+  if (status) query = query.eq('status', status.toUpperCase())
 
-  const serialized = sessions.map((s) => ({
-    id: s.id,
-    coach_id: s.coachId,
-    coach: s.coach ? serializeCoach(s.coach) : null,
-    client_id: s.clientId,
-    client: serializeProfile(s.client),
-    date: s.date.toISOString(),
-    duration_minutes: s.durationMinutes,
-    location: s.location,
-    city: s.city,
-    status: s.status.toLowerCase(),
-    notes: s.notes,
-    price: s.price,
-    created_at: s.createdAt.toISOString(),
+  const { data: rows } = await query
+
+  const profileIds = [...new Set((rows ?? []).flatMap((s: any) => [s.coachId, s.clientId]))]
+  const { data: profiles } = await supabaseAdmin.from('profiles').select('id,name,avatarUrl,city').in('id', profileIds)
+  const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]))
+
+  const coachIds = [...new Set((rows ?? []).map((s: any) => s.coachId))]
+  const { data: coaches } = await supabaseAdmin.from('coaches').select('id,profileId,hourlyRate,rating,isCertified,city').in('id', coachIds)
+  const coachMap = Object.fromEntries((coaches ?? []).map((c: any) => [c.id, { ...c, _profile: profileMap[c.profileId] }]))
+
+  const serialized = (rows ?? []).map((s: any) => ({
+    id: s.id, coach_id: s.coachId, client_id: s.clientId,
+    coach: coachMap[s.coachId] ? serializeCoach(coachMap[s.coachId]) : null,
+    client: profileMap[s.clientId] ? serializeProfile(profileMap[s.clientId]) : null,
+    date: s.date, duration_minutes: s.durationMinutes, location: s.location,
+    city: s.city, status: s.status?.toLowerCase(), notes: s.notes,
+    price: s.price, created_at: s.createdAt,
   }))
 
   const now = new Date()
@@ -102,34 +109,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: newSession }, { status: 201 })
     }
 
-    const { prisma } = await import('@/lib/prisma')
-    const coach = await prisma.coach.findUnique({ where: { profileId: auth.userId } })
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('profileId', auth.userId as number).single()
     if (!coach) return NextResponse.json({ error: "Vous n'êtes pas coach." }, { status: 403 })
 
-    const session = await prisma.coachSession.create({
-      data: {
+    const { data: session, error } = await supabaseAdmin
+      .from('coach_sessions')
+      .insert({
         coachId: coach.id, clientId: client_id,
-        date: new Date(date), durationMinutes: parseInt(duration_minutes),
-        location, city, status: 'SCHEDULED', notes, price: price ? parseFloat(price) : null,
-      },
-      include: { coach: { include: { profile: true } }, client: true },
-    })
+        date: new Date(date).toISOString(), durationMinutes: parseInt(duration_minutes),
+        location, city, status: 'SCHEDULED', notes,
+        price: price ? parseFloat(price) : null,
+      })
+      .select()
+      .single()
+    if (error) throw error
 
     return NextResponse.json({ data: session }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/coach/sessions]', err)
     return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
-  }
-}
-
-function serializeProfile(p: any) {
-  return { id: p.id, user_id: p.id, name: p.name, avatar_url: p.avatarUrl, city: p.city }
-}
-
-function serializeCoach(c: any) {
-  return {
-    id: c.id, profile_id: c.profileId, profile: serializeProfile(c.profile),
-    sport: c.sport, hourly_rate: c.hourlyRate, rating: c.rating,
-    is_certified: c.isCertified, city: c.city,
   }
 }

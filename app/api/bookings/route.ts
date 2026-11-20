@@ -2,18 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { useMockData } from '@/lib/db'
 
-// In-memory bookings store for mock mode (not exported — avoids Next.js route export error)
-const BOOKINGS: Array<{
-  id: number
-  coach_id: number
-  user_id: number | string
-  date: string
-  time_slot: string
-  message: string
-  status: 'pending' | 'confirmed' | 'cancelled'
-  created_at: string
-}> = []
-
+const BOOKINGS: any[] = []
 let nextId = 1
 
 export async function GET(req: NextRequest) {
@@ -21,18 +10,22 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
 
   if (useMockData) {
-    const userBookings = BOOKINGS.filter((b) => b.user_id === auth.userId)
-    return NextResponse.json({ data: userBookings })
+    return NextResponse.json({ data: BOOKINGS.filter((b) => b.user_id === auth.userId) })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
-  const { prisma } = await import('@/lib/prisma')
-  const sessions = await prisma.coachSession.findMany({
-    where: { clientId: auth.userId as number },
-    include: { coach: { include: { profile: true, sport: true } } },
-    orderBy: { date: 'desc' },
-  })
-  return NextResponse.json({ data: sessions })
+  const { supabaseAdmin } = await import('@/lib/supabase-admin')
+  const { data: sessions } = await supabaseAdmin
+    .from('coach_sessions')
+    .select('id,coachId,clientId,date,durationMinutes,location,city,status,notes,price,createdAt')
+    .eq('clientId', auth.userId as number)
+    .order('date', { ascending: false })
+
+  return NextResponse.json({ data: (sessions ?? []).map((s: any) => ({
+    id: s.id, coach_id: s.coachId, client_id: s.clientId,
+    date: s.date, duration_minutes: s.durationMinutes,
+    location: s.location, city: s.city, status: s.status?.toLowerCase(),
+    notes: s.notes, price: s.price, created_at: s.createdAt,
+  })) })
 }
 
 export async function POST(req: NextRequest) {
@@ -41,40 +34,27 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { coach_id, date, time_slot, message = '' } = body
-
-  if (!coach_id || !date || !time_slot) {
+  if (!coach_id || !date || !time_slot)
     return NextResponse.json({ error: 'coach_id, date et time_slot sont requis.' }, { status: 400 })
-  }
 
   if (useMockData) {
-    const booking = {
-      id: nextId++,
-      coach_id,
-      user_id: auth.userId,
-      date,
-      time_slot,
-      message,
-      status: 'pending' as const,
-      created_at: new Date().toISOString(),
-    }
+    const booking = { id: nextId++, coach_id, user_id: auth.userId, date, time_slot, message, status: 'pending', created_at: new Date().toISOString() }
     BOOKINGS.push(booking)
     return NextResponse.json({ data: booking }, { status: 201 })
   }
 
-  // ── Real mode: Prisma ────────────────────────────────────────────────────────
   try {
-    const { prisma } = await import('@/lib/prisma')
-    const session = await prisma.coachSession.create({
-      data: {
-        coachId: coach_id,
-        clientId: auth.userId as number,
-        date: new Date(`${date}T${time_slot}`),
-        location: '',
-        notes: message,
-        status: 'SCHEDULED',
-      },
-      include: { coach: { include: { profile: true, sport: true } } },
-    })
+    const { supabaseAdmin } = await import('@/lib/supabase-admin')
+    const { data: session, error } = await supabaseAdmin
+      .from('coach_sessions')
+      .insert({
+        coachId: coach_id, clientId: auth.userId as number,
+        date: new Date(`${date}T${time_slot}`).toISOString(),
+        location: '', notes: message, status: 'SCHEDULED', durationMinutes: 60,
+      })
+      .select()
+      .single()
+    if (error) throw error
     return NextResponse.json({ data: session }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/bookings]', err)
