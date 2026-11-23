@@ -117,10 +117,13 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single()
-    if (eventError || !event) throw new Error(eventError?.message ?? 'Erreur création event')
-    return NextResponse.json({ data: { ...event, participants_count: 1, participants: [] } }, { status: 201 })
-  } catch (err) {
+    if (eventError || !event) {
+      console.error('[POST /api/events] insert error:', JSON.stringify(eventError))
+      return NextResponse.json({ error: eventError?.message ?? 'Erreur création event' }, { status: 500 })
+    }
+    return NextResponse.json({ data: { ...event, participants_count: 0, participants: [] } }, { status: 201 })
+  } catch (err: any) {
     console.error('[POST /api/events]', err)
-    return NextResponse.json({ error: 'Erreur serveur.' }, { status: 500 })
+    return NextResponse.json({ error: err?.message ?? 'Erreur serveur.' }, { status: 500 })
   }
 }
