@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const eventId = parseInt(id)
-  const { score } = await req.json()
+  const { score, team_a, team_b } = await req.json()
 
   if (typeof score !== 'string') return NextResponse.json({ error: 'Score invalide.' }, { status: 400 })
 
@@ -18,7 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
     if (event.creator_id !== auth.userId) return NextResponse.json({ error: 'Seul le créateur peut saisir le score.' }, { status: 403 })
     ;(event as any).score = score
-    return NextResponse.json({ data: { score } })
+    ;(event as any).team_a = team_a ?? null
+    ;(event as any).team_b = team_b ?? null
+    return NextResponse.json({ data: { score, team_a, team_b } })
   }
 
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
@@ -32,9 +34,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!event) return NextResponse.json({ error: 'Événement introuvable.' }, { status: 404 })
   if (event.creatorId !== auth.userId) return NextResponse.json({ error: 'Seul le créateur peut saisir le score.' }, { status: 403 })
 
+  const updates: Record<string, string | null> = { score: score.trim() || null }
+  if (team_a !== undefined) updates.teamA = (team_a as string)?.trim() || null
+  if (team_b !== undefined) updates.teamB = (team_b as string)?.trim() || null
+
   const { error } = await supabaseAdmin
     .from('sport_events')
-    .update({ score: score.trim() || null })
+    .update(updates)
     .eq('id', eventId)
 
   if (error) {
@@ -42,5 +48,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: { score: score.trim() || null } })
+  return NextResponse.json({ data: { score: score.trim() || null, team_a: updates.teamA, team_b: updates.teamB } })
 }

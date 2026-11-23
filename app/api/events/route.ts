@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabaseAdmin
       .from('sport_events')
-      .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt, score')
+      .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt, score, teamA, teamB')
 
     if (past) {
       query = query.lte('date', new Date().toISOString()).order('date', { ascending: false })
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       infrastructure_id: e.infrastructureId, infrastructure: null,
       creator_id: e.creatorId, date: e.date,
       max_participants: e.maxParticipants, description: e.description,
-      level: e.level, score: e.score ?? null,
+      level: e.level, score: e.score ?? null, team_a: e.teamA ?? null, team_b: e.teamB ?? null,
       participants_count: countMap[e.id] ?? 0,
       participants: joinedSet.has(e.id) ? [{ user_id: currentUserId, name: currentUserName }] : [],
       join_status: joinedSet.has(e.id) ? 'accepted' : pendingSet.has(e.id) ? 'pending' : 'none',

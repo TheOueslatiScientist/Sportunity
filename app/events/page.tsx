@@ -199,7 +199,7 @@ export default function EventsPage() {
                 onLeave={handleLeave}
                 onAccept={handleAccept}
                 onReject={handleReject}
-                onScoreUpdate={(id, score) => setEvents(prev => prev.map(e => e.id === id ? { ...e, score } : e))}
+                onScoreUpdate={(id, score, teamA, teamB) => setEvents(prev => prev.map(e => e.id === id ? { ...e, score, team_a: teamA, team_b: teamB } : e))}
                 joining={joiningId === event.id}
                 leaving={leavingId === event.id}
                 currentUserId={currentUserId}

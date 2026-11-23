@@ -7,12 +7,12 @@ import Button from '@/components/ui/Button'
 import { getAuthToken } from '@/lib/client-utils'
 
 interface EventCardProps {
-  event: SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean; score?: string | null }
+  event: SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean; score?: string | null; team_a?: string | null; team_b?: string | null }
   onJoin?: (id: number) => void
   onLeave?: (id: number) => void
   onAccept?: (eventId: number, profileId: number) => void
   onReject?: (eventId: number, profileId: number) => void
-  onScoreUpdate?: (eventId: number, score: string) => void
+  onScoreUpdate?: (eventId: number, score: string, teamA: string, teamB: string) => void
   joining?: boolean
   leaving?: boolean
   currentUserId?: number
@@ -30,6 +30,8 @@ export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, 
   const [scoreEdit, setScoreEdit] = useState(false)
   const [scoreA, setScoreA] = useState('')
   const [scoreB, setScoreB] = useState('')
+  const [teamAName, setTeamAName] = useState(event.team_a ?? '')
+  const [teamBName, setTeamBName] = useState(event.team_b ?? '')
   const [savingScore, setSavingScore] = useState(false)
 
   async function submitScore() {
@@ -40,10 +42,10 @@ export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, 
     const res = await fetch(`/api/events/${event.id}/score`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ score: scoreStr }),
+      body: JSON.stringify({ score: scoreStr, team_a: teamAName, team_b: teamBName }),
     })
     if (res.ok) {
-      onScoreUpdate?.(event.id, scoreStr)
+      onScoreUpdate?.(event.id, scoreStr, teamAName, teamBName)
       setScoreEdit(false)
     }
     setSavingScore(false)
@@ -182,18 +184,25 @@ export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, 
         {isPast && (
           <div className="mt-3 border-t border-gray-100 pt-3">
             {event.score ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🏆</span>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Score final</p>
-                    <p className="text-base font-extrabold text-gray-900">{event.score}</p>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">🏆 Score final</span>
+                  {isCreator && (
+                    <button onClick={() => { setScoreEdit(true); const [a, b] = event.score!.split(' - '); setScoreA(a ?? ''); setScoreB(b ?? ''); setTeamAName(event.team_a ?? ''); setTeamBName(event.team_b ?? '') }}
+                      className="text-xs font-semibold text-gray-400 hover:text-gray-600">Modifier</button>
+                  )}
+                </div>
+                <div className="flex items-center justify-center gap-3 py-2 bg-gray-50 rounded-xl">
+                  <div className="flex flex-col items-center gap-0.5 flex-1">
+                    <span className="text-xs font-semibold text-gray-500 truncate max-w-[80px]">{event.team_a || 'Équipe A'}</span>
+                    <span className="text-2xl font-extrabold text-gray-900">{event.score.split(' - ')[0]}</span>
+                  </div>
+                  <span className="text-sm font-bold text-gray-300">-</span>
+                  <div className="flex flex-col items-center gap-0.5 flex-1">
+                    <span className="text-xs font-semibold text-gray-500 truncate max-w-[80px]">{event.team_b || 'Équipe B'}</span>
+                    <span className="text-2xl font-extrabold text-gray-900">{event.score.split(' - ')[1]}</span>
                   </div>
                 </div>
-                {isCreator && (
-                  <button onClick={() => { setScoreEdit(true); const [a, b] = event.score!.split(' - '); setScoreA(a ?? ''); setScoreB(b ?? '') }}
-                    className="text-xs font-semibold text-gray-400 hover:text-gray-600">Modifier</button>
-                )}
               </div>
             ) : isCreator && !scoreEdit ? (
               <button onClick={() => setScoreEdit(true)}
@@ -206,15 +215,24 @@ export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, 
 
             {scoreEdit && (
               <div className="mt-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <input value={teamAName} onChange={e => setTeamAName(e.target.value)}
+                    placeholder="Équipe A" maxLength={20}
+                    className="flex-1 text-center text-xs font-bold border border-gray-200 rounded-xl py-2 px-2 outline-none focus:border-primary-400 bg-gray-50"
+                  />
+                  <span className="text-xs text-gray-300 font-bold">vs</span>
+                  <input value={teamBName} onChange={e => setTeamBName(e.target.value)}
+                    placeholder="Équipe B" maxLength={20}
+                    className="flex-1 text-center text-xs font-bold border border-gray-200 rounded-xl py-2 px-2 outline-none focus:border-primary-400 bg-gray-50"
+                  />
+                </div>
                 <div className="flex items-center gap-2 justify-center">
-                  <input
-                    type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)}
+                  <input type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)}
                     placeholder="0"
                     className="w-16 text-center text-xl font-extrabold border-2 border-primary-300 rounded-xl py-2 outline-none focus:border-primary-500"
                   />
                   <span className="text-lg font-bold text-gray-400">-</span>
-                  <input
-                    type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
+                  <input type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
                     placeholder="0"
                     className="w-16 text-center text-xl font-extrabold border-2 border-primary-300 rounded-xl py-2 outline-none focus:border-primary-500"
                   />
