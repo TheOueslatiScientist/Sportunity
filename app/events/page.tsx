@@ -21,6 +21,7 @@ export default function EventsPage() {
   const [joiningId, setJoiningId] = useState<number | null>(null)
   const [leavingId, setLeavingId] = useState<number | null>(null)
   const [level, setLevel] = useState('all')
+  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [currentUserId, setCurrentUserId] = useState<number | undefined>()
   const [requests, setRequests] = useState<Record<number, any[]>>({})
 
@@ -32,15 +33,19 @@ export default function EventsPage() {
   useEffect(() => {
     const token = getAuthToken()
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
-    const params = level !== 'all' ? `?level=${level}` : ''
-    fetch(`/api/events${params}`, { headers })
+    const params = new URLSearchParams()
+    if (level !== 'all') params.set('level', level)
+    if (tab === 'past') params.set('past', 'true')
+    const qs = params.toString() ? `?${params}` : ''
+    setLoading(true)
+    fetch(`/api/events${qs}`, { headers })
       .then((r) => r.json())
       .then(async (data) => {
         const evs = data.data ?? []
         setEvents(evs)
         setLoading(false)
-        // Load pending requests for events the user created
-        if (!token) return
+        // Load pending requests for upcoming events the user created
+        if (!token || tab === 'past') return
         const createdEvents = evs.filter((e: any) => e.is_creator) as any[]
         const reqMap: Record<number, any[]> = {}
         await Promise.all(createdEvents.map(async (e: any) => {
@@ -49,7 +54,7 @@ export default function EventsPage() {
         }))
         setRequests(reqMap)
       })
-  }, [level])
+  }, [level, tab])
 
   async function handleJoin(eventId: number) {
     const token = getAuthToken()
@@ -125,8 +130,8 @@ export default function EventsPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-3">
+        <div className="flex items-center justify-between mb-3">
           <h1 className="text-2xl font-extrabold text-gray-900">Événements</h1>
           <Link href="/events/new">
             <Button size="sm">
@@ -136,6 +141,16 @@ export default function EventsPage() {
               Créer
             </Button>
           </Link>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-3 bg-gray-100 rounded-xl p-1">
+          <button onClick={() => setTab('upcoming')} className={cn('flex-1 py-1.5 rounded-lg text-xs font-bold transition-all', tab === 'upcoming' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500')}>
+            À venir
+          </button>
+          <button onClick={() => setTab('past')} className={cn('flex-1 py-1.5 rounded-lg text-xs font-bold transition-all', tab === 'past' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500')}>
+            Passés
+          </button>
         </div>
 
         {/* Level filters */}
@@ -184,6 +199,7 @@ export default function EventsPage() {
                 onLeave={handleLeave}
                 onAccept={handleAccept}
                 onReject={handleReject}
+                onScoreUpdate={(id, score) => setEvents(prev => prev.map(e => e.id === id ? { ...e, score } : e))}
                 joining={joiningId === event.id}
                 leaving={leavingId === event.id}
                 currentUserId={currentUserId}

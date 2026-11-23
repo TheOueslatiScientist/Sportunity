@@ -23,11 +23,17 @@ export async function GET(req: NextRequest) {
     const auth = await getUserFromRequest(req)
     const currentUserId = auth?.userId as number | undefined
 
+    const past = searchParams.get('past') === 'true'
+
     let query = supabaseAdmin
       .from('sport_events')
-      .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt')
-      .gt('date', new Date().toISOString())
-      .order('date', { ascending: true })
+      .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt, score')
+
+    if (past) {
+      query = query.lte('date', new Date().toISOString()).order('date', { ascending: false })
+    } else {
+      query = query.gt('date', new Date().toISOString()).order('date', { ascending: true })
+    }
 
     if (sport && sport !== 'all') query = query.eq('sportId', sport)
     if (level && level !== 'all') query = query.eq('level', level)
@@ -68,7 +74,7 @@ export async function GET(req: NextRequest) {
       infrastructure_id: e.infrastructureId, infrastructure: null,
       creator_id: e.creatorId, date: e.date,
       max_participants: e.maxParticipants, description: e.description,
-      level: e.level,
+      level: e.level, score: e.score ?? null,
       participants_count: countMap[e.id] ?? 0,
       participants: joinedSet.has(e.id) ? [{ user_id: currentUserId, name: currentUserName }] : [],
       join_status: joinedSet.has(e.id) ? 'accepted' : pendingSet.has(e.id) ? 'pending' : 'none',

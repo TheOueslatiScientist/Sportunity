@@ -1,28 +1,53 @@
 'use client'
+import { useState } from 'react'
 import { SportEvent } from '@/types'
 import { formatEventDate, levelLabel, cn } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import { getAuthToken } from '@/lib/client-utils'
 
 interface EventCardProps {
-  event: SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean }
+  event: SportEvent & { join_status?: 'none' | 'pending' | 'accepted'; is_creator?: boolean; score?: string | null }
   onJoin?: (id: number) => void
   onLeave?: (id: number) => void
   onAccept?: (eventId: number, profileId: number) => void
   onReject?: (eventId: number, profileId: number) => void
+  onScoreUpdate?: (eventId: number, score: string) => void
   joining?: boolean
   leaving?: boolean
   currentUserId?: number
   pendingRequests?: { profile_id: number; profile: { name: string; avatar_url?: string } | null }[]
 }
 
-export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, joining, leaving, currentUserId, pendingRequests }: EventCardProps) {
+export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, onScoreUpdate, joining, leaving, currentUserId, pendingRequests }: EventCardProps) {
   const spotsLeft = event.max_participants - event.participants_count
   const isFull = spotsLeft <= 0
   const joinStatus = event.join_status ?? (event.participants?.some((p) => p.user_id === currentUserId) ? 'accepted' : 'none')
   const isParticipant = joinStatus === 'accepted'
   const isPending = joinStatus === 'pending'
   const isCreator = event.is_creator ?? event.creator_id === currentUserId
+  const isPast = new Date(event.date) < new Date()
+  const [scoreEdit, setScoreEdit] = useState(false)
+  const [scoreA, setScoreA] = useState('')
+  const [scoreB, setScoreB] = useState('')
+  const [savingScore, setSavingScore] = useState(false)
+
+  async function submitScore() {
+    const token = getAuthToken()
+    if (!token || !scoreA || !scoreB) return
+    setSavingScore(true)
+    const scoreStr = `${scoreA} - ${scoreB}`
+    const res = await fetch(`/api/events/${event.id}/score`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score: scoreStr }),
+    })
+    if (res.ok) {
+      onScoreUpdate?.(event.id, scoreStr)
+      setScoreEdit(false)
+    }
+    setSavingScore(false)
+  }
 
   return (
     <div className="bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden hover:shadow-card-hover transition-all duration-300 active:scale-[0.98]">
@@ -151,6 +176,59 @@ export default function EventCard({ event, onJoin, onLeave, onAccept, onReject, 
           <a href={`/events/${event.id}/chat`} className="mt-3 block text-center text-xs font-semibold text-primary-600 bg-primary-50 rounded-xl py-2">
             💬 Chat du groupe
           </a>
+        )}
+
+        {/* Score section — past events */}
+        {isPast && (
+          <div className="mt-3 border-t border-gray-100 pt-3">
+            {event.score ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏆</span>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Score final</p>
+                    <p className="text-base font-extrabold text-gray-900">{event.score}</p>
+                  </div>
+                </div>
+                {isCreator && (
+                  <button onClick={() => { setScoreEdit(true); const [a, b] = event.score!.split(' - '); setScoreA(a ?? ''); setScoreB(b ?? '') }}
+                    className="text-xs font-semibold text-gray-400 hover:text-gray-600">Modifier</button>
+                )}
+              </div>
+            ) : isCreator && !scoreEdit ? (
+              <button onClick={() => setScoreEdit(true)}
+                className="w-full text-center text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl py-2 transition-colors">
+                🏆 Saisir le score final
+              </button>
+            ) : !isCreator ? (
+              <p className="text-xs text-center text-gray-400">Score non encore renseigné</p>
+            ) : null}
+
+            {scoreEdit && (
+              <div className="mt-2 flex flex-col gap-2">
+                <div className="flex items-center gap-2 justify-center">
+                  <input
+                    type="number" min="0" value={scoreA} onChange={e => setScoreA(e.target.value)}
+                    placeholder="0"
+                    className="w-16 text-center text-xl font-extrabold border-2 border-primary-300 rounded-xl py-2 outline-none focus:border-primary-500"
+                  />
+                  <span className="text-lg font-bold text-gray-400">-</span>
+                  <input
+                    type="number" min="0" value={scoreB} onChange={e => setScoreB(e.target.value)}
+                    placeholder="0"
+                    className="w-16 text-center text-xl font-extrabold border-2 border-primary-300 rounded-xl py-2 outline-none focus:border-primary-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setScoreEdit(false)} className="flex-1 py-2 rounded-xl bg-gray-100 text-xs font-semibold text-gray-600">Annuler</button>
+                  <button onClick={submitScore} disabled={savingScore || !scoreA || !scoreB}
+                    className="flex-1 py-2 rounded-xl bg-primary-600 text-xs font-bold text-white disabled:opacity-50 transition-colors">
+                    {savingScore ? '...' : 'Enregistrer'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
