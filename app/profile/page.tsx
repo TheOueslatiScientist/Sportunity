@@ -388,6 +388,21 @@ export default function ProfilePage() {
         {/* Stats + Friends */}
         <FriendsSection />
 
+        {/* History shortcut */}
+        <div className="px-4 mt-4">
+          <Link href="/history"
+            className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm active:scale-[0.98] transition-all">
+            <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📅</div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-900">Mon historique</p>
+              <p className="text-xs text-gray-400">Voir tous mes événements passés</p>
+            </div>
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+
         {/* Discover other users */}
         <DiscoverSection />
 
