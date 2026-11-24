@@ -108,11 +108,12 @@ const SPORT_FILTERS = [
   { value: 'football',   label: 'Foot' },
   { value: 'basketball', label: 'Basket' },
   { value: 'tennis',     label: 'Tennis' },
-  { value: 'running',    label: 'Running' },
-  { value: 'swimming',   label: 'Natation' },
-  { value: 'gym',        label: 'Gym' },
   { value: 'padel',      label: 'Padel' },
+  { value: 'badminton',  label: 'Badminton' },
+  { value: 'swimming',   label: 'Piscine' },
   { value: 'volleyball', label: 'Volley' },
+  { value: 'running',    label: 'Running' },
+  { value: 'gym',        label: 'Gym' },
 ]
 
 const STATUS_FILTERS = [
@@ -150,10 +151,16 @@ function AddClubModal({ onClose, onAdded, userLat, userLng }: { onClose: () => v
   const [error, setError] = useState('')
 
   const TYPES = [
-    { value: 'football', label: 'Football' }, { value: 'basketball', label: 'Basket' },
-    { value: 'tennis', label: 'Tennis' }, { value: 'swimming', label: 'Natation' },
-    { value: 'gym', label: 'Salle de sport' }, { value: 'padel', label: 'Padel' },
-    { value: 'running', label: 'Athlétisme' }, { value: 'other', label: 'Autre' },
+    { value: 'football',   label: 'Football' },
+    { value: 'basketball', label: 'Basket' },
+    { value: 'tennis',     label: 'Tennis' },
+    { value: 'padel',      label: 'Padel' },
+    { value: 'badminton',  label: 'Badminton' },
+    { value: 'swimming',   label: 'Piscine' },
+    { value: 'volleyball', label: 'Volley' },
+    { value: 'gym',        label: 'Gym' },
+    { value: 'running',    label: 'Athlétisme' },
+    { value: 'other',      label: 'Autre' },
   ]
 
   async function handleSubmit(e: FormEvent) {

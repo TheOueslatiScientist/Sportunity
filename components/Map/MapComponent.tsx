@@ -5,7 +5,7 @@ import { sportTypeColor } from '@/lib/utils'
 
 const SPORT_INITIALS: Record<string, string> = {
   football: 'F', basketball: 'B', tennis: 'T', running: 'R',
-  gym: 'G', swimming: 'N', volleyball: 'V', padel: 'P', other: '?',
+  gym: 'G', swimming: 'N', volleyball: 'V', padel: 'P', badminton: 'BD', other: '?',
 }
 
 interface MapComponentProps {
@@ -173,7 +173,9 @@ export default function MapComponent({
       markersRef.current = []
 
       infrastructures.forEach((infra) => {
-        const color   = sportTypeColor(infra.type)
+        // Skip if coordinates are missing — would crash Leaflet and block all subsequent markers
+        if (infra.lat == null || infra.lng == null || isNaN(infra.lat) || isNaN(infra.lng)) return
+        const color   = sportTypeColor(infra.type ?? 'other')
         const initial = SPORT_INITIALS[infra.type] ?? '?'
         const eventsHere = events.filter((e) => e.infrastructure_id === infra.id).length
 

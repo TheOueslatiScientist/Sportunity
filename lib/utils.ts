@@ -96,6 +96,7 @@ export function sportTypeIcon(type: string): string {
     swimming: '🏊',
     volleyball: '🏐',
     padel: '🏓',
+    badminton: '🏸',
     other: '🏅',
   }
   return icons[type] ?? '🏅'
@@ -111,6 +112,7 @@ export function sportTypeColor(type: string): string {
     swimming: '#06b6d4',
     volleyball: '#8b5cf6',
     padel: '#ec4899',
+    badminton: '#a855f7',
     other: '#64748b',
   }
   return colors[type] ?? '#64748b'
