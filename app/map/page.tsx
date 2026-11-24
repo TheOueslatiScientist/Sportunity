@@ -256,21 +256,30 @@ export default function MapPage() {
     )
   }, [])
 
-  // ── Fetch all data ─────────────────────────────────────────────────────────
+  // ── Fetch events + coaches once ────────────────────────────────────────────
   useEffect(() => {
     const token = getAuthToken() ?? ''
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
     Promise.all([
-      fetch('/api/infrastructures').then((r) => r.json()).catch(() => ({ data: [] })),
       fetch('/api/events', { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
       fetch('/api/coaches').then((r) => r.json()).catch(() => ({ data: [] })),
-    ]).then(([infraRes, eventsRes, coachesRes]) => {
-      setInfrastructures(infraRes.data ?? [])
+    ]).then(([eventsRes, coachesRes]) => {
       setEvents(eventsRes.data ?? [])
       setCoaches(coachesRes.data ?? [])
-      setDataLoading(false)
     })
   }, [])
+
+  // ── Fetch nearby infrastructures whenever center changes ──────────────────
+  useEffect(() => {
+    setDataLoading(true)
+    fetch(`/api/infrastructures/nearby?lat=${userLat}&lng=${userLng}&radius=20`)
+      .then((r) => r.json())
+      .catch(() => ({ data: [] }))
+      .then((res) => {
+        setInfrastructures(res.data ?? [])
+        setDataLoading(false)
+      })
+  }, [userLat, userLng])
 
   // ── Compute distances + apply filters ─────────────────────────────────────
   useEffect(() => {
@@ -335,7 +344,8 @@ export default function MapPage() {
   }
 
   async function reloadInfras() {
-    const res = await fetch('/api/infrastructures').then((r) => r.json()).catch(() => ({ data: [] }))
+    const res = await fetch(`/api/infrastructures/nearby?lat=${userLat}&lng=${userLng}&radius=20`)
+      .then((r) => r.json()).catch(() => ({ data: [] }))
     setInfrastructures(res.data ?? [])
   }
 

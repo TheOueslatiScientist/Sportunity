@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       .select('id,name,type,address,lat,lng,"isPublic",status,"imageUrl"')
       .gte('lat', lat - delta).lte('lat', lat + delta)
       .gte('lng', lng - delta).lte('lng', lng + delta)
+      .limit(2000)
 
     if (type && type !== 'all') query = query.eq('type', type.toUpperCase())
 
@@ -41,9 +42,9 @@ export async function GET(req: NextRequest) {
 
     const data = (rows ?? [])
       .map((i: any) => ({
-        id: i.id, name: i.name, type: i.type.toLowerCase(),
+        id: i.id, name: i.name, type: (i.type ?? 'other').toLowerCase(),
         address: i.address, lat: i.lat, lng: i.lng,
-        is_public: i.isPublic, status: i.status.toLowerCase(),
+        is_public: i.isPublic, status: (i.status ?? 'available').toLowerCase(),
         image_url: i.imageUrl,
         distance: haversineDistance(lat, lng, i.lat, i.lng),
       }))
