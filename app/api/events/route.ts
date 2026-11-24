@@ -24,15 +24,16 @@ export async function GET(req: NextRequest) {
     const currentUserId = auth?.userId as number | undefined
 
     const past = searchParams.get('past') === 'true'
+    const now = new Date().toISOString()
 
     let query = supabaseAdmin
       .from('sport_events')
       .select('id, title, sportId, infrastructureId, creatorId, date, maxParticipants, description, level, createdAt, score, teamA, teamB')
 
     if (past) {
-      query = query.lte('date', new Date().toISOString()).order('date', { ascending: false })
+      query = query.lt('date', now).order('date', { ascending: false })
     } else {
-      query = query.gt('date', new Date().toISOString()).order('date', { ascending: true })
+      query = query.gte('date', now).order('date', { ascending: true })
     }
 
     if (sport && sport !== 'all') query = query.eq('sportId', sport)
@@ -43,6 +44,18 @@ export async function GET(req: NextRequest) {
 
     if (!rows || rows.length === 0) return NextResponse.json({ data: [] })
 
+    // Static sport lookup (no sports table in DB)
+    const sportMap: Record<number, { id: number; name: string; icon: string; color: string }> = {
+      1: { id: 1, name: 'Football',    icon: '⚽', color: '#22c55e' },
+      2: { id: 2, name: 'Basketball',  icon: '🏀', color: '#f97316' },
+      3: { id: 3, name: 'Tennis',      icon: '🎾', color: '#eab308' },
+      4: { id: 4, name: 'Running',     icon: '🏃', color: '#3b82f6' },
+      5: { id: 5, name: 'Natation',    icon: '🏊', color: '#06b6d4' },
+      6: { id: 6, name: 'Volleyball',  icon: '🏐', color: '#8b5cf6' },
+      7: { id: 7, name: 'Padel',       icon: '🏓', color: '#ec4899' },
+      8: { id: 8, name: 'Gym / Fitness', icon: '💪', color: '#ef4444' },
+    }
+
     const eventIds = rows.map((e: any) => e.id)
 
     // Fetch participant counts (only ACCEPTED count toward spots)
@@ -52,8 +65,8 @@ export async function GET(req: NextRequest) {
       .in('eventId', eventIds)
 
     const countMap: Record<number, number> = {}
-    const joinedSet = new Set<number>()   // ACCEPTED
-    const pendingSet = new Set<number>()  // PENDING
+    const joinedSet = new Set<number>()
+    const pendingSet = new Set<number>()
     for (const p of participantRows ?? []) {
       if (p.status === 'ACCEPTED') countMap[p.eventId] = (countMap[p.eventId] ?? 0) + 1
       if (currentUserId && p.profileId === currentUserId) {
@@ -70,7 +83,8 @@ export async function GET(req: NextRequest) {
     }
 
     const data = rows.map((e: any) => ({
-      id: e.id, title: e.title, sport_id: e.sportId, sport: null,
+      id: e.id, title: e.title, sport_id: e.sportId,
+      sport: sportMap[e.sportId] ?? null,
       infrastructure_id: e.infrastructureId, infrastructure: null,
       creator_id: e.creatorId, date: e.date,
       max_participants: e.maxParticipants, description: e.description,
@@ -83,9 +97,9 @@ export async function GET(req: NextRequest) {
     }))
 
     return NextResponse.json({ data })
-  } catch (err) {
+  } catch (err: any) {
     console.error('[GET /api/events]', err)
-    return NextResponse.json({ data: [] })
+    return NextResponse.json({ error: err?.message ?? 'Erreur serveur.', data: [] }, { status: 500 })
   }
 }
 
