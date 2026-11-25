@@ -79,17 +79,20 @@ export default function EventsPage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (res.ok) {
-        const data = await res.json()
-        const newStatus = data.status === 'PENDING' ? 'pending' : 'accepted'
-        setEvents((prev) =>
-          prev.map((e) =>
-            e.id === eventId
-              ? { ...e, join_status: newStatus }
-              : e
-          )
-        )
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 401) { window.location.href = '/login'; return }
+        alert(data.error ?? 'Erreur lors de l\'inscription.')
+        return
       }
+      const newStatus = data.status === 'PENDING' ? 'pending' : 'accepted'
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? { ...e, join_status: newStatus }
+            : e
+        )
+      )
     } finally {
       setJoiningId(null)
     }

@@ -35,7 +35,11 @@ export async function getUserFromRequest(
     return verifyToken(token)
   }
 
-  // Real mode: verify via Supabase, resolve integer Profile ID
+  // Real mode: try our own JWT first (issued since the fix), then fall back to Supabase token
+  const ours = verifyToken(token)
+  if (ours) return ours
+
+  // Legacy path: Supabase access_token (expires 1h — only for sessions started before the fix)
   const { verifySupabaseToken } = await import('@/lib/supabase')
   const { supabaseAdmin } = await import('@/lib/supabase-admin')
 

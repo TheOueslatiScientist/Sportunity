@@ -96,8 +96,11 @@ export async function POST(req: NextRequest) {
 
     if (!profile) return NextResponse.json({ error: 'Profil introuvable.' }, { status: 500 })
 
+    // Use our own 7-day JWT so the token never expires mid-session (Supabase tokens expire in 1h)
+    const ourToken = signToken({ userId: profile.id, email: data.user.email! })
+
     return NextResponse.json({
-      token: data.session.access_token,
+      token: ourToken,
       user: {
         id: profile.id,
         email: data.user.email,
