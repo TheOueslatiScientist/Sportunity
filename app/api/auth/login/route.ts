@@ -47,19 +47,25 @@ export async function POST(req: NextRequest) {
     const { createClient } = await import('@supabase/supabase-js')
     const { supabaseAdmin } = await import('@/lib/supabase-admin')
 
-    // If email not confirmed, auto-confirm via admin before signing in
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-    const existing = users.find((u: any) => u.email === email)
-    if (existing && !existing.email_confirmed_at) {
-      await supabaseAdmin.auth.admin.updateUserById(existing.id, { email_confirm: true })
-    }
-
     const authClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { auth: { persistSession: false } }
     )
-    const { data, error } = await authClient.auth.signInWithPassword({ email, password })
+
+    let { data, error } = await authClient.auth.signInWithPassword({ email, password })
+
+    // If email not confirmed, auto-confirm via admin and retry
+    if (error?.message?.toLowerCase().includes('email') && error.message.toLowerCase().includes('confirm')) {
+      const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+      const existing = (listData?.users ?? []).find((u: any) => u.email === email)
+      if (existing) {
+        await supabaseAdmin.auth.admin.updateUserById(existing.id, { email_confirm: true })
+        const retry = await authClient.auth.signInWithPassword({ email, password })
+        data = retry.data
+        error = retry.error
+      }
+    }
 
     if (error || !data.session)
       return NextResponse.json({ error: 'Email ou mot de passe incorrect.' }, { status: 401 })

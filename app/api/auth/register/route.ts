@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
 
     if (createError) {
       // Check if user already exists in auth
-      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-      const existing = users.find((u: any) => u.email === email)
+      const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+      const existing = (listData?.users ?? []).find((u: any) => u.email === email)
       if (!existing) {
         return NextResponse.json({ error: createError.message ?? 'Inscription impossible.' }, { status: 400 })
       }
