@@ -86,15 +86,8 @@ export async function POST(req: NextRequest) {
       profile = newProfile
     }
 
-    // Sign in to get a valid session token
-    const { createClient } = await import('@supabase/supabase-js')
-    const authClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { persistSession: false } }
-    )
-    const { data: signInData } = await authClient.auth.signInWithPassword({ email, password })
-    const token = signInData.session?.access_token
+    // Issue our own 7-day JWT (same as login) so the token never expires mid-session
+    const token = signToken({ userId: profile.id, email })
 
     return NextResponse.json(
       { token, user: { id: profile.id, email, name, profile } },
