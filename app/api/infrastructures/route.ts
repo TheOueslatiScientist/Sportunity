@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       .from('infrastructures')
       .select('id,name,type,address,lat,lng,"isPublic",status,"imageUrl"')
       .order('name')
-      .limit(500)
+      .limit(100)
 
     if (type && type !== 'all') query = query.eq('type', type.toUpperCase())
     if (status && status !== 'all') query = query.eq('status', status.toUpperCase())

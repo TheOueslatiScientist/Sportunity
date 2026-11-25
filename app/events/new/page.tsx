@@ -32,24 +32,29 @@ function NewEventPageInner() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/sports').then((r) => r.json()),
-      fetch('/api/infrastructures').then((r) => r.json()),
-    ]).then(([sRes, iRes]) => {
-      setSports(sRes.data ?? [])
-      setInfrastructures(iRes.data ?? [])
-    })
-
     // Default date = tomorrow 18h
     const d = new Date()
     d.setDate(d.getDate() + 1)
     d.setHours(18, 0, 0, 0)
     setDate(d.toISOString().slice(0, 16))
+
+    // Load sports independently — do not block on infras
+    fetch('/api/sports')
+      .then((r) => r.json())
+      .then((s) => setSports(s.data ?? []))
+      .catch(() => {/* keep empty array */})
+
+    // Load only public available infras, limited to 100 for the dropdown
+    fetch('/api/infrastructures?status=available&public=true')
+      .then((r) => r.json())
+      .then((i) => setInfrastructures(i.data ?? []))
+      .catch(() => {/* optional field — ignore error */})
   }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
+    if (!title.trim()) { setError('Donne un titre à ton événement.'); return }
     if (!sportId) { setError('Sélectionne un sport.'); return }
     const token = getAuthToken()
     if (!token) { router.push('/login'); return }
@@ -69,9 +74,10 @@ function NewEventPageInner() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
+      if (!res.ok) { setError(data.error ?? 'Erreur lors de la création.'); return }
       router.push('/events')
-    } catch {
+    } catch (err: any) {
+      console.error('[new event]', err)
       setError('Erreur réseau, réessayez.')
     } finally {
       setLoading(false)
