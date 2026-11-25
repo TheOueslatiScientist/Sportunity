@@ -100,8 +100,12 @@ export default function BottomNav() {
   function NavItem({ href, label, icon, badge }: { href: string; label: string; icon: (a: boolean) => React.ReactNode; badge?: number }) {
     const active = pathname === href || (href !== '/feed' && pathname.startsWith(href + '/'))
     return (
-      <Link href={href} className="flex flex-col items-center gap-0.5 flex-1 py-2 relative">
-        <div className={cn('relative', active ? 'text-primary-700' : 'text-gray-400')}>
+      <Link
+        href={href}
+        prefetch={true}
+        className="flex flex-col items-center gap-0.5 flex-1 py-2 relative active:scale-95 transition-transform duration-100"
+      >
+        <div className={cn('relative transition-colors duration-200', active ? 'text-primary-700' : 'text-gray-400')}>
           {icon(active)}
           {(badge ?? 0) > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] font-bold text-white">
@@ -109,7 +113,7 @@ export default function BottomNav() {
             </span>
           )}
         </div>
-        <span className={cn('text-[9px] font-semibold', active ? 'text-primary-700' : 'text-gray-400')}>
+        <span className={cn('text-[9px] font-semibold transition-colors duration-200', active ? 'text-primary-700' : 'text-gray-400')}>
           {label}
         </span>
       </Link>
