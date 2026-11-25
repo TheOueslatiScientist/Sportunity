@@ -15,12 +15,25 @@ const LEVEL_FILTERS = [
   { value: 'advanced', label: 'Avancé' },
 ]
 
+const SPORT_FILTERS = [
+  { value: 'all', label: 'Tous', icon: '🏅' },
+  { value: '1', label: 'Football', icon: '⚽' },
+  { value: '2', label: 'Basketball', icon: '🏀' },
+  { value: '3', label: 'Tennis', icon: '🎾' },
+  { value: '4', label: 'Running', icon: '🏃' },
+  { value: '5', label: 'Natation', icon: '🏊' },
+  { value: '6', label: 'Cyclisme', icon: '🚴' },
+  { value: '7', label: 'Volley', icon: '🏐' },
+  { value: '8', label: 'Badminton', icon: '🏸' },
+]
+
 export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [joiningId, setJoiningId] = useState<number | null>(null)
   const [leavingId, setLeavingId] = useState<number | null>(null)
   const [level, setLevel] = useState('all')
+  const [sport, setSport] = useState('all')
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [currentUserId, setCurrentUserId] = useState<number | undefined>()
   const [requests, setRequests] = useState<Record<number, any[]>>({})
@@ -35,12 +48,13 @@ export default function EventsPage() {
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {}
     const params = new URLSearchParams()
     if (level !== 'all') params.set('level', level)
+    if (sport !== 'all') params.set('sport', sport)
     if (tab === 'past') params.set('past', 'true')
     const qs = params.toString() ? `?${params}` : ''
     setLoading(true)
     fetch(`/api/events${qs}`, { headers })
       .then((r) => r.json())
-      .then(async (data) => {
+      .then(async (data: { data?: any[] }) => {
         const evs = data.data ?? []
         setEvents(evs)
         setLoading(false)
@@ -54,7 +68,7 @@ export default function EventsPage() {
         }))
         setRequests(reqMap)
       })
-  }, [level, tab])
+  }, [level, sport, tab])
 
   async function handleJoin(eventId: number) {
     const token = getAuthToken()
@@ -153,6 +167,25 @@ export default function EventsPage() {
           </button>
         </div>
 
+        {/* Sport filters */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-none mb-2">
+          {SPORT_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setSport(f.value)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-semibold whitespace-nowrap transition-all duration-200',
+                sport === f.value
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <span>{f.icon}</span>
+              <span>{f.label}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Level filters */}
         <div className="flex gap-2 overflow-x-auto scrollbar-none">
           {LEVEL_FILTERS.map((f) => (
@@ -162,7 +195,7 @@ export default function EventsPage() {
               className={cn(
                 'px-4 py-2 rounded-2xl text-xs font-semibold whitespace-nowrap transition-all duration-200',
                 level === f.value
-                  ? 'bg-primary-500 text-white'
+                  ? 'bg-gray-800 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               )}
             >
