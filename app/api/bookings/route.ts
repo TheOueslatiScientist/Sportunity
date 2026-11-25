@@ -45,16 +45,48 @@ export async function POST(req: NextRequest) {
 
   try {
     const { supabaseAdmin } = await import('@/lib/supabase-admin')
+
+    // Convert weekday name + time slot to next occurrence datetime
+    const DAY_INDEX: Record<string, number> = { lun: 1, mar: 2, mer: 3, jeu: 4, ven: 5, sam: 6, dim: 0 }
+    const targetDay = DAY_INDEX[date as string] ?? -1
+    let sessionDate: Date
+    if (targetDay === -1) {
+      // Fallback: treat date as ISO string if not a weekday code
+      sessionDate = new Date(`${date}T${time_slot}`)
+    } else {
+      const now = new Date()
+      const diff = (targetDay - now.getDay() + 7) % 7 || 7
+      sessionDate = new Date(now)
+      sessionDate.setDate(now.getDate() + diff)
+      const [h, m] = (time_slot as string).split(':').map(Number)
+      sessionDate.setHours(h ?? 10, m ?? 0, 0, 0)
+    }
+
     const { data: session, error } = await supabaseAdmin
       .from('coach_sessions')
       .insert({
         coachId: coach_id, clientId: auth.userId as number,
-        date: new Date(`${date}T${time_slot}`).toISOString(),
+        date: sessionDate.toISOString(),
         location: '', notes: message, status: 'SCHEDULED', durationMinutes: 60,
       })
       .select()
       .single()
     if (error) throw error
+
+    // Notify the coach
+    const { data: coach } = await supabaseAdmin.from('coaches').select('userId').eq('id', coach_id).single()
+    if (coach?.userId) {
+      const { data: client } = await supabaseAdmin.from('profiles').select('name').eq('id', auth.userId as number).single()
+      const { createNotification } = await import('@/lib/notify')
+      await createNotification({
+        userId: coach.userId as number,
+        type: 'match_joined',
+        title: `${client?.name ?? 'Un sportif'} a réservé une séance`,
+        body: `${date} à ${time_slot}`,
+        relatedId: session.id as number,
+      })
+    }
+
     return NextResponse.json({ data: session }, { status: 201 })
   } catch (err) {
     console.error('[POST /api/bookings]', err)
