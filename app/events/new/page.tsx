@@ -17,13 +17,13 @@ const LEVELS = [
 function NewEventPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const preselectedInfraId = searchParams.get('infrastructure') ? parseInt(searchParams.get('infrastructure')!) : null
   const [sports, setSports] = useState<Sport[]>([])
   const [infrastructures, setInfrastructures] = useState<Infrastructure[]>([])
+  const [preselectedInfra, setPreselectedInfra] = useState<Infrastructure | null>(null)
   const [title, setTitle] = useState('')
   const [sportId, setSportId] = useState<number | ''>('')
-  const [infraId, setInfraId] = useState<number | ''>(
-    searchParams.get('infrastructure') ? parseInt(searchParams.get('infrastructure')!) : ''
-  )
+  const [infraId, setInfraId] = useState<number | ''>(preselectedInfraId ?? '')
   const [date, setDate] = useState('')
   const [maxParticipants, setMaxParticipants] = useState(10)
   const [description, setDescription] = useState('')
@@ -38,18 +38,26 @@ function NewEventPageInner() {
     d.setHours(18, 0, 0, 0)
     setDate(d.toISOString().slice(0, 16))
 
-    // Load sports independently — do not block on infras
+    // Load sports independently
     fetch('/api/sports')
       .then((r) => r.json())
       .then((s) => setSports(s.data ?? []))
-      .catch(() => {/* keep empty array */})
+      .catch(() => {})
 
-    // Load only public available infras, limited to 100 for the dropdown
-    fetch('/api/infrastructures?status=available&public=true')
+    // Load available infras for dropdown (100 max)
+    fetch('/api/infrastructures?status=available')
       .then((r) => r.json())
       .then((i) => setInfrastructures(i.data ?? []))
-      .catch(() => {/* optional field — ignore error */})
-  }, [])
+      .catch(() => {})
+
+    // If pre-selected from map, fetch that specific infra to show its name
+    if (preselectedInfraId) {
+      fetch(`/api/infrastructures/${preselectedInfraId}`)
+        .then((r) => r.json())
+        .then((d) => { if (d.data) setPreselectedInfra(d.data) })
+        .catch(() => {})
+    }
+  }, [preselectedInfraId])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -85,9 +93,9 @@ function NewEventPageInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4 flex items-center gap-3">
+      <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4 flex items-center gap-3 flex-shrink-0">
         <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
           <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -96,7 +104,7 @@ function NewEventPageInner() {
         <h1 className="text-xl font-extrabold text-gray-900">Créer un événement</h1>
       </div>
 
-      <div className="px-4 py-6 pb-24 max-w-lg mx-auto">
+      <div className="flex-1 overflow-y-auto px-4 py-6 pb-28 max-w-lg mx-auto w-full">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <Input
             label="Titre de l'événement"
@@ -132,16 +140,33 @@ function NewEventPageInner() {
           {/* Infrastructure */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">Lieu (optionnel)</label>
-            <select
-              value={infraId}
-              onChange={(e) => setInfraId(e.target.value ? parseInt(e.target.value) : '')}
-              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
-            >
-              <option value="">Choisir un terrain</option>
-              {infrastructures.map((i) => (
-                <option key={i.id} value={i.id}>{i.name}</option>
-              ))}
-            </select>
+            {preselectedInfra ? (
+              <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-2xl px-4 py-3">
+                <span className="text-lg">📍</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-primary-800 truncate">{preselectedInfra.name}</p>
+                  <p className="text-xs text-primary-500 truncate">{preselectedInfra.address}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setPreselectedInfra(null); setInfraId('') }}
+                  className="text-xs text-primary-400 hover:text-primary-600 font-semibold flex-shrink-0"
+                >
+                  Changer
+                </button>
+              </div>
+            ) : (
+              <select
+                value={infraId}
+                onChange={(e) => setInfraId(e.target.value ? parseInt(e.target.value) : '')}
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
+              >
+                <option value="">Choisir un terrain</option>
+                {infrastructures.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Date */}
