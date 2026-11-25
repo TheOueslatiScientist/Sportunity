@@ -58,7 +58,21 @@ export type InfrastructureType =
   | 'swimming'
   | 'volleyball'
   | 'padel'
+  | 'badminton'
   | 'other'
+
+// ─── Terrain Status (real-time occupancy) ────────────────────────────────────
+export type TerrainStatusValue = 'libre' | 'occupe' | 'inconnu'
+
+export interface TerrainStatus {
+  id: number
+  infrastructure_id: number
+  status: TerrainStatusValue
+  nb_joueurs?: number
+  signale_par: number
+  expire_a: string
+  created_at: string
+}
 
 export type InfrastructureStatus = 'available' | 'occupied' | 'maintenance'
 

@@ -30,7 +30,14 @@ enum InfraType {
   SWIMMING
   VOLLEYBALL
   PADEL
+  BADMINTON
   OTHER
+}
+
+enum TerrainStatusEnum {
+  libre
+  occupe
+  inconnu
 }
 
 enum InfraStatus {
@@ -167,8 +174,23 @@ model Infrastructure {
   sportId  Int?
   sport    Sport?      @relation(fields: [sportId], references: [id])
   events   SportEvent[]
+  terrainStatuses TerrainStatus[]
 
   @@map("infrastructures")
+}
+
+model TerrainStatus {
+  id               Int               @id @default(autoincrement())
+  infrastructureId Int
+  infrastructure   Infrastructure    @relation(fields: [infrastructureId], references: [id], onDelete: Cascade)
+  status           TerrainStatusEnum
+  nbJoueurs        Int?
+  signalePar       Int
+  expireA          DateTime
+  createdAt        DateTime          @default(now())
+
+  @@unique([infrastructureId, signalePar])
+  @@map("terrain_statuses")
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────

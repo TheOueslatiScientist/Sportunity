@@ -4,6 +4,7 @@ import Badge, { StatusBadge } from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { sportTypeIcon, sportTypeLabel, formatEventDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import TerrainStatusBadge from '@/components/TerrainStatusBadge'
 
 interface InfrastructureSheetProps {
   infrastructure: Infrastructure | null
@@ -15,33 +16,6 @@ interface InfrastructureSheetProps {
   onJoinEvent?: (id: number) => void
 }
 
-// Deterministic occupancy based on infra id — stable across renders
-function occupancyPercent(status: string, id: number): number {
-  if (status === 'maintenance') return 0
-  // Pseudo-random but stable: use id as seed
-  const seed = (id * 37 + 13) % 100
-  if (status === 'available') return (seed % 45) + 5    // 5–50%
-  return (seed % 30) + 70                               // 70–99%
-}
-
-function OccupancyBar({ status, id }: { status: string; id: number }) {
-  const pct = occupancyPercent(status, id)
-  const color =
-    pct < 40  ? 'bg-green-500' :
-    pct < 75  ? 'bg-yellow-500' :
-                'bg-red-500'
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium text-gray-600">Fréquentation actuelle</span>
-        <span className="text-xs font-bold text-gray-700">{pct}%</span>
-      </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
-}
 
 function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60)
@@ -123,8 +97,8 @@ export default function InfrastructureSheet({
             )}
           </div>
 
-          {/* Occupancy */}
-          <OccupancyBar status={infrastructure.status} id={infrastructure.id} />
+          {/* Real-time occupancy */}
+          <TerrainStatusBadge infrastructureId={infrastructure.id} />
 
           {/* Events at this venue */}
           {relatedEvents.length > 0 && (
